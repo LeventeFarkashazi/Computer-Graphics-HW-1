@@ -73,7 +73,18 @@ void onInitialization() {
 	glGenBuffers(1, &vbo);	// Generate 1 buffer
 	glBindBuffer(GL_ARRAY_BUFFER, vbo);
 	// Geometry with 24 bytes (6 floats or 3 x 2 coordinates)
-	float vertices[] = { -0.8f, -0.8f, -0.6f, 1.0f, 0.8f, -0.2f };
+
+	//kör pontjai
+	int nTesselatedVertices = 10;
+	float vertices[20];
+
+		for (int i = 0; i < (nTesselatedVertices * 2); i += 2) {
+		float phi = i * 2.0f * M_PI / nTesselatedVertices;
+		vertices[i] = cosf(phi) * 0.8f;
+		vertices[i+1] = sinf(phi) * 0.8f;
+		}
+
+	//float vertices[] = { -0.8f, -0.8f, -0.6f, 1.0f, 0.7f, 0.5f, 0.4f, 0.9f , 0.3f, -0.7 };
 	glBufferData(GL_ARRAY_BUFFER, 	// Copy to GPU target
 		sizeof(vertices),  // # bytes
 		vertices,	      	// address
@@ -88,6 +99,8 @@ void onInitialization() {
 	gpuProgram.create(vertexSource, fragmentSource, "outColor");
 }
 
+float p = 0.0f, q = 0.0f;
+
 // Window has become invalid: Redraw
 void onDisplay() {
 	glClearColor(0, 0, 0, 0);     // background color
@@ -100,20 +113,26 @@ void onDisplay() {
 	float MVPtransf[4][4] = { 1, 0, 0, 0,    // MVP matrix, 
 							  0, 1, 0, 0,    // row-major!
 							  0, 0, 1, 0,
-							  0, 0, 0, 1 };
+							  q, p, 0, 1 };
 
 	location = glGetUniformLocation(gpuProgram.getId(), "MVP");	// Get the GPU location of uniform variable MVP
 	glUniformMatrix4fv(location, 1, GL_TRUE, &MVPtransf[0][0]);	// Load a 4x4 row-major float matrix to the specified location
 
 	glBindVertexArray(vao);  // Draw call
-	glDrawArrays(GL_TRIANGLES, 0 /*startIdx*/, 3 /*# Elements*/);
+	glDrawArrays(GL_TRIANGLE_FAN, 0 /*startIdx*/, 10 /*# Elements*/);
 
 	glutSwapBuffers(); // exchange buffers for double buffering
 }
 
 // Key of ASCII code pressed
 void onKeyboard(unsigned char key, int pX, int pY) {
-	if (key == 'd') glutPostRedisplay();         // if d, invalidate display, i.e. redraw
+	switch (key) {
+	case 'e': p += 0.1f; break;
+	case 'x': p -= 0.1f; break;
+	case 'd': q += 0.1f; break;
+	case 's': q -= 0.1f; break;
+	}
+	glutPostRedisplay();        // redraw
 }
 
 // Key of ASCII code released
