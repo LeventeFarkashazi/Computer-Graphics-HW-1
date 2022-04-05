@@ -58,11 +58,12 @@ const char* const fragmentSource = R"(
 
 GPUProgram gpuProgram; // vertex and fragment shaders
 unsigned int vao;	   // virtual world on the GPU
+float p = 0.0f, q = 0.0f;
 
 class Atom {
 public:
 	int mass;		//1 -> 10
-	int charge;		// -10 -> +10 (elektron töltése)
+	int charge;		// -10 -> +10 (elemi töltése)
 
 	float radius;
 	vec4 center;
@@ -74,7 +75,7 @@ public:
 		center.x = x;
 		center.y = y;
 		charge = c;
-		mass = rand() % 6 + 5;
+		mass = rand() % 6 + 1;
 		radius = (float)mass / 100;
 	}
 
@@ -107,7 +108,6 @@ public:
 			sizeof(float) * 4, NULL); 				// stride, offset: tightly packed
 
 		glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), NULL);
-
 		glDrawArrays(GL_TRIANGLE_FAN, 0, nVertices);
 	}
 
@@ -145,9 +145,75 @@ public:
 
 };
 
+class Molecule {
+public:
+	int nAtoms;		//2 -> 8
+	int nBonds;		// -10 -> +10 (elemi töltése)
+	float atomDistance = 0.1f;
+
+	vec4  massCenter;
+
+	std::vector<Atom> atoms;
+	std::vector<Bond> bonds;
+
+	Molecule() {
+		nAtoms = rand() % 7 + 2;
+		nBonds = nAtoms - 1;
+
+		std::vector<int> charges;
+
+		int randomCharge;
+		int chargeSum;
+		bool zeroCharge = false;
+
+		while (!zeroCharge) {
+			charges.clear();
+			chargeSum = 0;
+
+			for (int i = 0; i < nAtoms; i++) {
+				randomCharge = rand() % 21 - 10;
+				//printf("%d\n", randomCharge);
+				chargeSum += randomCharge;
+				charges.push_back(randomCharge);
+			}
+
+			//printf("------------------------------\n");
+
+			if (chargeSum == 0) {
+				zeroCharge = true;
+			}
+		}
+
+		for (int i = 0; i < nAtoms; i++) {
+			atoms.push_back(Atom((float)(rand() % 201 - 100) / 100, (float)(rand() % 201 - 100) / 100, charges.at(i)));
+		}
+		
+
+		for (int i = 0; i < nBonds; i++) {
+			bonds.push_back(Bond(atoms.at(i), atoms.at(i+1)));
+		}
+	}
+		void drawMolecule() {
+			for (int i = 0; i < bonds.size(); i++) {
+				bonds.at(i).drawBond();
+			}
+
+
+			for (int i = 0; i < nAtoms; i++) {
+				atoms.at(i).drawAtom();
+			}
+		}
+
+};
+
+Molecule m1;
+Molecule m2;
 
 // Initialization, create an OpenGL context
 void onInitialization() {
+	m1 = Molecule();
+	m2 = Molecule();
+
 	glViewport(0, 0, windowWidth, windowHeight);
 
 	glGenVertexArrays(1, &vao);	// get 1 vao id
@@ -160,20 +226,24 @@ void onInitialization() {
 
 // Window has become invalid: Redraw
 void onDisplay() {
+	m1 = Molecule();
+	m2 = Molecule();
+
 	glClearColor(0.2, 0.2, 0.2, 0);     // background color
 	glClear(GL_COLOR_BUFFER_BIT); // clear frame buffer
 
 	float MVPtransf[4][4] = { 1, 0, 0, 0,    // MVP matrix, 
 							  0, 1, 0, 0,    // row-major!
 							  0, 0, 1, 0,
-							  0, 0, 0, 1 };
+							  q, p, 0, 1 };
 
 	int  location = glGetUniformLocation(gpuProgram.getId(), "MVP");	// Get the GPU location of uniform variable MVP
 	glUniformMatrix4fv(location, 1, GL_TRUE, &MVPtransf[0][0]);	// Load a 4x4 row-major float matrix to the specified location
 
 	glBindVertexArray(vao);  // Draw call
 	//glDrawArrays(GL_TRIANGLES, 0 /*startIdx*/, 3 /*# Elements*/);
-
+	
+	/*
 	Atom a = Atom(0.3f, 0.3f, -10);
 
 	Atom b = Atom(-0.7f, 0.2f, 10);
@@ -194,6 +264,10 @@ void onDisplay() {
 	f.drawBond();
 	e.drawAtom();
 	d.drawAtom();
+	*/
+
+	m1.drawMolecule();
+	m2.drawMolecule();
 
 	glutSwapBuffers(); // exchange buffers for double buffering
 }
@@ -201,6 +275,13 @@ void onDisplay() {
 // Key of ASCII code pressed
 void onKeyboard(unsigned char key, int pX, int pY) {
 	if (key == 'd') glutPostRedisplay();         // if d, invalidate display, i.e. redraw
+	switch (key) {
+	case 'e': p += 0.1f; break;
+	case 'x': p -= 0.1f; break;
+	case 'd': q += 0.1f; break;
+	case 's': q -= 0.1f; break;
+	}
+	glutPostRedisplay();
 }
 
 // Key of ASCII code released
