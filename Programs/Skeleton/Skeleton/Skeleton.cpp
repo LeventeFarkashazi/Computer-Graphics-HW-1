@@ -61,32 +61,39 @@ unsigned int vao;	   // virtual world on the GPU
 
 class Atom {
 public:
+	int mass;		//1 -> 10
+	int charge;		// -10 -> +10 (elektron töltése)
+
 	float radius;
-	///float xCoordinate;
-	//float yCoordinate;
 	vec4 center;
 
 	const int nVertices = 50;
 	std::vector<vec4> points;
 
-	Atom(float x, float y, float r) {
+	Atom(float x, float y, int c) {
 		center.x = x;
 		center.y = y;
-		radius = r;
+		charge = c;
+		mass = rand() % 6 + 5;
+		radius = (float)mass / 100;
 	}
 
 	void calculateVerices() {		
 		for (int i = 0; i < nVertices; i++) {
-			float phi = i * 2.0f * M_PI / nVertices;
+			float phi = (float)i * 2.0f * (float)M_PI / (float)nVertices;
 			points.push_back(vec4(cosf(phi) * radius + center.x, sinf(phi) * radius + center.y , 0, 1));
 		}
 	}
 
 	void drawAtom() {
 		calculateVerices();
-
+		
 		int location = glGetUniformLocation(gpuProgram.getId(), "color");
-		glUniform3f(location, 1.0f, 1.0f, 1.0f); // 3 floats
+		if(charge < 0)
+		glUniform3f(location, 0.0f, 0.0f, (float) -1* charge/10); // 3 floats
+		else {
+			glUniform3f(location, (float)charge / 10, 0.0f, 0.0f);
+		}
 
 		unsigned int vbo;		// vertex buffer object
 		glGenBuffers(1, &vbo);	// Generate 1 buffer
@@ -118,10 +125,10 @@ public:
 
 	void drawBond() {
 		int location = glGetUniformLocation(gpuProgram.getId(), "color");
-		glUniform3f(location, 0.0f, 1.0f, 0.0f); // 3 floats
+		glUniform3f(location, 1.0f, 1.0f, 1.0f);	// 3 floats
 
-		unsigned int vbo;		// vertex buffer object
-		glGenBuffers(1, &vbo);	// Generate 1 buffer
+		unsigned int vbo;							// vertex buffer object
+		glGenBuffers(1, &vbo);						// Generate 1 buffer
 		glBindBuffer(GL_ARRAY_BUFFER, vbo);
 
 		glBufferData(GL_ARRAY_BUFFER, 2 * sizeof(vec4), &points[0], GL_STATIC_DRAW);
@@ -153,7 +160,7 @@ void onInitialization() {
 
 // Window has become invalid: Redraw
 void onDisplay() {
-	glClearColor(0, 0, 0, 0);     // background color
+	glClearColor(0.2, 0.2, 0.2, 0);     // background color
 	glClear(GL_COLOR_BUFFER_BIT); // clear frame buffer
 
 	float MVPtransf[4][4] = { 1, 0, 0, 0,    // MVP matrix, 
@@ -167,15 +174,26 @@ void onDisplay() {
 	glBindVertexArray(vao);  // Draw call
 	//glDrawArrays(GL_TRIANGLES, 0 /*startIdx*/, 3 /*# Elements*/);
 
-	Atom a = Atom(0.3, 0.3, 0.3);
+	Atom a = Atom(0.3f, 0.3f, -10);
 
-	Atom b = Atom(-0.7, 0.2, 0.1);
+	Atom b = Atom(-0.7f, 0.2f, 10);
 	
 	Bond c = Bond(a,b);
 	
 	c.drawBond();
 	b.drawAtom();
 	a.drawAtom();
+
+
+	Atom d = Atom(0.3f, -0.3f, -3);
+
+	Atom e = Atom(-0.7f, -0.2f, 3);
+
+	Bond f = Bond(d, e);
+
+	f.drawBond();
+	e.drawAtom();
+	d.drawAtom();
 
 	glutSwapBuffers(); // exchange buffers for double buffering
 }
