@@ -75,23 +75,23 @@ public:
 		center.x = x;
 		center.y = y;
 		charge = c;
-		mass = rand() % 6 + 1;
+		mass = (rand() % 5) + 2;
 		radius = (float)mass / 100;
 	}
 
-	void calculateVerices() {		
+	void calculateVerices() {
 		for (int i = 0; i < nVertices; i++) {
 			float phi = (float)i * 2.0f * (float)M_PI / (float)nVertices;
-			points.push_back(vec4(cosf(phi) * radius + center.x, sinf(phi) * radius + center.y , 0, 1));
+			points.push_back(vec4(cosf(phi) * radius + center.x, sinf(phi) * radius + center.y, 0, 1));
 		}
 	}
 
 	void drawAtom() {
 		calculateVerices();
-		
+
 		int location = glGetUniformLocation(gpuProgram.getId(), "color");
-		if(charge < 0)
-		glUniform3f(location, 0.0f, 0.0f, (float) -1* charge/10); // 3 floats
+		if (charge < 0)
+			glUniform3f(location, 0.0f, 0.0f, (float)-1 * charge / 10); // 3 floats
 		else {
 			glUniform3f(location, (float)charge / 10, 0.0f, 0.0f);
 		}
@@ -116,14 +116,19 @@ public:
 class Bond {
 public:
 	std::vector<vec4> points;
+	std::vector<Atom> atoms;
 
 	Bond(Atom a, Atom b) {
-		points.push_back(a.center);
-		points.push_back(b.center);
+		atoms.push_back(a);
+		atoms.push_back(b);
 	}
 
 
 	void drawBond() {
+		points.clear();
+		points.push_back(atoms.at(0).center);
+		points.push_back(atoms.at(1).center);
+
 		int location = glGetUniformLocation(gpuProgram.getId(), "color");
 		glUniform3f(location, 1.0f, 1.0f, 1.0f);	// 3 floats
 
@@ -172,38 +177,67 @@ public:
 
 			for (int i = 0; i < nAtoms; i++) {
 				randomCharge = rand() % 21 - 10;
-				//printf("%d\n", randomCharge);
 				chargeSum += randomCharge;
 				charges.push_back(randomCharge);
 			}
-
-			//printf("------------------------------\n");
 
 			if (chargeSum == 0) {
 				zeroCharge = true;
 			}
 		}
 
-		for (int i = 0; i < nAtoms; i++) {
-			atoms.push_back(Atom((float)(rand() % 201 - 100) / 100, (float)(rand() % 201 - 100) / 100, charges.at(i)));
-		}
-		
 
-		for (int i = 0; i < nBonds; i++) {
-			bonds.push_back(Bond(atoms.at(i), atoms.at(i+1)));
+		for (int i = 0; i < nAtoms; i++) {
+			Atom newAtom = Atom(0, 0, 0);
+			if (!atoms.empty()) {
+				Atom pair = atoms.at(rand() % atoms.size());
+
+				//newAtom.center = pair.center + vec4((float)(rand() % 21) / 100, (float)(rand() % 21) / 100, 0, 1);
+				int badPosition = 1;
+				while (badPosition) {
+					float randomPhi = ((float)(rand() % 10001) / 10000) * 2.0f * (float)M_PI;					//radian: 0 és 2 * (float)M_PI
+					newAtom.center = pair.center + vec4(cos(randomPhi), sin(randomPhi), 0, 1) * 0.3;			//random egységvektor * 0.2
+					
+					if (-1 < newAtom.center.x && newAtom.center.x < 1 && -1 < newAtom.center.y && newAtom.center.y < 1) { //no atoms initializes out of frame
+						badPosition = 0;
+						
+						/*
+						for (int i = 0; i < atoms.size(); i++) {
+							vec4 diff = newAtom.center - atoms.at(i).center;
+							printf(" %f\n", sqrtf(dot(diff, diff)));
+							if (sqrtf(dot(diff, diff)) < 0.1) {
+								badPosition = true;
+								printf("FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF");
+							}
+						}
+						*/
+					}
+				}
+
+				newAtom.charge = charges.at(i);
+
+				bonds.push_back(Bond(newAtom, pair));
+			}
+			else
+			{
+				newAtom.center.x = (float)(rand() % 201 - 100) / 100;
+				newAtom.center.y = (float)(rand() % 201 - 100) / 100;
+				newAtom.charge = charges.at(i);
+			}
+			atoms.push_back(newAtom);
 		}
 	}
-		void drawMolecule() {
-			for (int i = 0; i < bonds.size(); i++) {
-				bonds.at(i).drawBond();
-			}
 
+	void drawMolecule() {
 
-			for (int i = 0; i < nAtoms; i++) {
-				atoms.at(i).drawAtom();
-			}
+		for (unsigned int i = 0; i < bonds.size(); i++) {
+			bonds.at(i).drawBond();
 		}
 
+		for (int i = 0; i < nAtoms; i++) {
+			atoms.at(i).drawAtom();
+		}
+	}
 };
 
 Molecule m1;
@@ -218,10 +252,10 @@ void onInitialization() {
 
 	glGenVertexArrays(1, &vao);	// get 1 vao id
 	glBindVertexArray(vao);		// make it active
-	
+
 	// create program for the GPU
 	gpuProgram.create(vertexSource, fragmentSource, "outColor");
-	
+
 }
 
 // Window has become invalid: Redraw
@@ -242,14 +276,14 @@ void onDisplay() {
 
 	glBindVertexArray(vao);  // Draw call
 	//glDrawArrays(GL_TRIANGLES, 0 /*startIdx*/, 3 /*# Elements*/);
-	
+
 	/*
 	Atom a = Atom(0.3f, 0.3f, -10);
 
 	Atom b = Atom(-0.7f, 0.2f, 10);
-	
+
 	Bond c = Bond(a,b);
-	
+
 	c.drawBond();
 	b.drawAtom();
 	a.drawAtom();
