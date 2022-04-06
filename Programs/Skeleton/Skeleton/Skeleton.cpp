@@ -66,7 +66,6 @@ const char* const fragmentSource = R"(
 )";
 
 GPUProgram gpuProgram;      // vertex and fragment shaders
-unsigned int vao;           // virtual world on the GPU
 float p = 0.0f, q = 0.0f;   // the value of the shifting  p: y-axis q:x-axis 
 int transform = 1;          // for testing
 
@@ -76,13 +75,14 @@ vec4 projectToHyperboloid(vec4 v) {
   else return v;
 }
 
-vec4 poincareProjection(vec4 v) {
+vec4 projectToDisc(vec4 v) {
   if (transform)
     return vec4(v.x/(v.z + 1), v.y/(v.z + 1), 0, v.w);
   else return v;
 }
 
 class Atom {
+  unsigned int vao, vbo;    // vertex buffer object
   const int nVertices = 50; //the "resolution"
 
  public:
@@ -104,45 +104,51 @@ class Atom {
   void calculateVerices() {
     points.clear();
     for (int i = 0; i < nVertices; i++) {
-      float phi = (float)i * 2.0f * (float)M_PI / (float)nVertices;    //phi angle from the unit circle in radian 
-      points.push_back(vec4(cosf(phi) * radius + center.x,             //unit rircle points * radius + center offset
-                            sinf(phi) * radius + center.y, 0, 1));
+      float phi = (float)i * 2.0f * (float)M_PI / (float)nVertices;     //phi angle from the unit circle in radian 
+      points.push_back(projectToDisc(projectToHyperboloid(vec4(
+            cosf(phi) * radius + center.x,                              //unit circle points * radius + center offset
+            sinf(phi) * radius + center.y, 0, 1))));
     }
   }
 
-  void drawAtom() {
+  void create() {
     calculateVerices();
 
-    for (int i = 0; i < nVertices; i++) {
-      points.at(i) = poincareProjection(projectToHyperboloid(points.at(i))); 
-    }
+    glGenVertexArrays(1, &vao);
+    glBindVertexArray(vao);
 
-    int location = glGetUniformLocation(gpuProgram.getId(), "color");
-    if (charge < 0)
-      glUniform3f(location, 0.0f, 0.0f, (float)-1 * charge / 10);   //blue between 0 and 1 (need to be positive...)
-    else {
-      glUniform3f(location, (float)charge / 10, 0.0f, 0.0f);        //red between 0 and 1 
-    }
-
-    unsigned int vbo;                   // vertex buffer object
-    glGenBuffers(1, &vbo);              // Generate 1 buffer
+    glGenBuffers(1, &vbo);                  // Generate 1 buffer
     glBindBuffer(GL_ARRAY_BUFFER, vbo);
 
-    glBufferData(GL_ARRAY_BUFFER, nVertices * sizeof(vec4), &points[0],
-                 GL_STATIC_DRAW);
+     glBufferData(GL_ARRAY_BUFFER,          // copy to the GPU
+                 nVertices * sizeof(vec4),  // number of the vbo in bytes
+                 &points[0],                // address of the data array on the CPU
+                 GL_STATIC_DRAW);           // copy to that part of the memory which is not modified 
 
-    glEnableVertexAttribArray(0);  // AttribArray 0
+    glEnableVertexAttribArray(0);           // AttribArray 0
     glVertexAttribPointer(
-        0,                         // vbo -> AttribArray 0
-        2, GL_FLOAT, GL_FALSE,     // two floats/attrib, not fixed-point
-        sizeof(float) * 4, NULL);  // stride, offset: tightly packed
-
-    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), NULL);
-    glDrawArrays(GL_TRIANGLE_FAN, 0, nVertices);
+    0,                                      // vbo -> AttribArray 0
+    2, GL_FLOAT, GL_FALSE,                  // two floats/attrib, not fixed-point
+    sizeof(float) * 4, NULL);               // stride, offset: tightly packed
   }
+
+    void draw() {
+    
+        int location = glGetUniformLocation(gpuProgram.getId(), "color");
+        if (charge < 0)
+            glUniform3f(location, 0.0f, 0.0f, (float)-1 * charge / 10); // blue between 0 and 1 (need to be positive...)
+        else {
+            glUniform3f(location, (float)charge / 10, 0.0f, 0.0f);      // red between 0 and 1
+        }
+
+        glBindVertexArray(vao);
+        glDrawArrays(GL_TRIANGLE_FAN, 0, nVertices);
+    }
+
 };
 
 class Bond {
+  unsigned int vao, vbo;        // vertex buffer object
   const int nVertices = 50;     //the "resolution"
 
  public:
@@ -156,37 +162,40 @@ class Bond {
 
   void calculateVerices() {
     points.clear();
-    for (int i = 0; i <= nVertices; ++i) {              //linear interpollation between two known points
+    for (int i = 0; i <= nVertices; ++i) {                                     //linear interpollation between two known points
       float xCoordinate = atoms.at(0).center.x + ((atoms.at(1).center.x - atoms.at(0).center.x) / (float)nVertices) * (float)i;
       float yCoordinate = atoms.at(0).center.y + ((atoms.at(1).center.y - atoms.at(0).center.y) / (float)nVertices) * (float)i;
       points.push_back(vec4(xCoordinate, yCoordinate, 0, 1));
     }
   }
 
-  void drawBond() {
+  void create() {
     calculateVerices();
     
     for (int i = 0; i < nVertices; i++) {
-      points.at(i) = poincareProjection(projectToHyperboloid(points.at(i)));
+      points.at(i) = projectToDisc(projectToHyperboloid(points.at(i)));
     }
 
+    glGenVertexArrays(1, &vao);
+    glBindVertexArray(vao);
+
+    glGenBuffers(1, &vbo);              // Generate 1 buffer
+    glBindBuffer(GL_ARRAY_BUFFER, vbo);
+
+    glBufferData(GL_ARRAY_BUFFER, nVertices * sizeof(vec4), &points[0], GL_STATIC_DRAW);
+  
+      glEnableVertexAttribArray(0);     // AttribArray 0
+    glVertexAttribPointer(
+        0,                              // vbo -> AttribArray 0
+        2, GL_FLOAT, GL_FALSE,          // two floats/attrib, not fixed-point
+        sizeof(float) * 4, NULL);       // stride, offset: tightly packed
+  }
+
+  void draw() {
     int location = glGetUniformLocation(gpuProgram.getId(), "color");
     glUniform3f(location, 1.0f, 1.0f, 1.0f);  // 3 floats
 
-    unsigned int vbo;       // vertex buffer object
-    glGenBuffers(1, &vbo);  // Generate 1 buffer
-    glBindBuffer(GL_ARRAY_BUFFER, vbo);
-
-    glBufferData(GL_ARRAY_BUFFER, nVertices * sizeof(vec4), &points[0],
-                 GL_STATIC_DRAW);
-
-    glEnableVertexAttribArray(0);  // AttribArray 0
-    glVertexAttribPointer(
-        0,                         // vbo -> AttribArray 0
-        2, GL_FLOAT, GL_FALSE,     // two floats/attrib, not fixed-point
-        sizeof(float) * 4, NULL);  // stride, offset: tightly packed
-
-    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), NULL);
+    glBindVertexArray(vao);
     glDrawArrays(GL_LINE_STRIP, 0, nVertices);
   }
 };
@@ -194,8 +203,10 @@ class Bond {
 class Molecule {
  public:
   int nAtoms;                   // random between2 and 8
-  int nBonds;                   // tree => atoms-1
-  float atomDistance = 0.3f;    //between centers
+  int nBonds;                   // tree => edges == atoms-1
+  float atomDistance = 0.3f;    // between centers
+  vec2 wTranslate;              // translation
+  float phi;                    // rotation
 
   vec4 massCenter;
 
@@ -205,6 +216,8 @@ class Molecule {
   Molecule() {
     nAtoms = rand() % 7 + 2;
     nBonds = nAtoms - 1;
+    
+    animate(0);
 
     std::vector<int> charges;
 
@@ -212,7 +225,7 @@ class Molecule {
     int chargeSum;
     bool zeroCharge = false;
 
-    while (!zeroCharge) { //try until charge is 0
+    while (!zeroCharge) {   //try until charge is 0
       charges.clear();
       chargeSum = 0;
 
@@ -235,19 +248,19 @@ class Molecule {
 
         int badPosition = 1;
         while (badPosition) {
-          float randomPhi = ((float)(rand() % 10001) / 10000) * 2.0f * (float)M_PI;                 // random phi between 0 and (2 * (float)M_PI) radian
-          newAtom.center = pair.center + vec4(cosf(randomPhi), sinf(randomPhi), 0, 1) * atomDistance; // random directional unit vector * distance
+          float randomPhi = ((float)(rand() % 10001) / 10000) * 2.0f * (float)M_PI;                     // random phi between 0 and (2 * (float)M_PI) radian
+          newAtom.center = pair.center + vec4(cosf(randomPhi), sinf(randomPhi), 0, 1) * atomDistance;   // random directional unit vector * distance
 
-          if (-1 < newAtom.center.x && newAtom.center.x < 1 &&      // atoms acn't be initializes out of frame
+          if (-1 < newAtom.center.x && newAtom.center.x < 1 &&      // atoms can't be initializes out of frame
               -1 < newAtom.center.y && newAtom.center.y < 1) {  
             badPosition = 0;
           }
         }
 
-        newAtom.charge = charges.at(i);
+        newAtom.charge = charges.at(i);                             //precalculated charge
 
         bonds.push_back(Bond(newAtom, pair));
-      } else {
+      } else {                                                     //first atom ("root" of tree)
         newAtom.center.x = (float)(rand() % 201 - 100) / 100;
         newAtom.center.y = (float)(rand() % 201 - 100) / 100;
         newAtom.charge = charges.at(i);
@@ -256,13 +269,46 @@ class Molecule {
     }
   }
 
-  void drawMolecule() {
+  void create() {
     for (unsigned int i = 0; i < bonds.size(); i++) {
-      bonds.at(i).drawBond();
+      bonds.at(i).create();
     }
 
     for (int i = 0; i < nAtoms; i++) {
-      atoms.at(i).drawAtom();
+      atoms.at(i).create();
+    }
+  }
+
+  void animate(float t) { 
+     phi = t;
+     wTranslate = vec2(0, 0);
+  }
+
+  mat4 M() {
+		mat4 Mrotate(cosf(phi), sinf(phi), 0, 0,
+			        -sinf(phi), cosf(phi), 0, 0,
+			           0,        0,        1, 0,
+			           0,        0,        0, 1); // rotation
+
+		mat4 Mtranslate(1,            0,            0, 0,
+			            0,            1,            0, 0,
+			            0,            0,            0, 0,
+			            wTranslate.x, wTranslate.y, 0, 1); // translation
+
+		return Mrotate * Mtranslate;	// model transformation
+	}
+
+
+  void draw() {
+          mat4 MVPTransform = M();      //TODO
+    gpuProgram.setUniform(MVPTransform, "MVP");
+
+    for (unsigned int i = 0; i < bonds.size(); i++) {
+      bonds.at(i).draw();
+    }
+
+    for (int i = 0; i < nAtoms; i++) {
+      atoms.at(i).draw();
     }
   }
 };
@@ -272,13 +318,11 @@ Molecule m2;
 
 // Initialization, create an OpenGL context
 void onInitialization() {
-  m1 = Molecule();
-  m2 = Molecule();
+  glViewport(0, 0, windowWidth, windowHeight);      // Position and size of the photograph on screen
 
-  glViewport(0, 0, windowWidth, windowHeight);
-
-  glGenVertexArrays(1, &vao);  // get 1 vao id
-  glBindVertexArray(vao);      // make it active
+  // Initialize the components of the molecule
+  m1.create();
+  m2.create();
 
   // create program for the GPU
   gpuProgram.create(vertexSource, fragmentSource, "outColor");
@@ -290,7 +334,7 @@ void onDisplay() {
   glClearColor((GLclampf)0.2, (GLclampf)0.2, (GLclampf)0.2, (GLclampf)0);     // background color
   glClear(GL_COLOR_BUFFER_BIT);    // clear frame buffer
 
-  vec4 shift = poincareProjection(projectToHyperboloid(vec4(q,p,0,1))); 
+  vec4 shift = projectToDisc(projectToHyperboloid(vec4(q,p,0,1))); 
   float MVPtransf[4][4] = {
       1, 0, 0, 0,  // MVP matrix,
       0, 1, 0, 0,  // row-major!
@@ -304,30 +348,9 @@ void onDisplay() {
 
   glUniformMatrix4fv(location, 1, GL_TRUE,
                      &MVPtransf[0][0]);  // Load a 4x4 row-major float matrix to
-  
-  glBindVertexArray(vao);   // Draw call
 
-  /*
-  Atom a1 = Atom(-1, -1, 10);
-  Atom a2 = Atom(-1, 0, 10);
-  Atom a3 = Atom(-1, 1, 10);
-  Atom a4 = Atom(0, 1, 10);
-  Atom a5 = Atom(1, 1, 10);
-  Atom a6 = Atom(1, 0, 10);
-  Atom a7 = Atom(1, -1, 10);
-  Atom a8 = Atom(0, -1, 10);
-  a1.drawAtom();
-  a2.drawAtom();
-  a3.drawAtom();
-  a4.drawAtom();
-  a5.drawAtom();
-  a6.drawAtom();
-  a7.drawAtom();
-  a8.drawAtom();
-  */
-
-    m1.drawMolecule();
-    m2.drawMolecule(); 
+    m1.draw();
+    m2.draw(); 
 
   glutSwapBuffers();        // exchange buffers for double buffering
 }
@@ -346,6 +369,12 @@ void onKeyboard(unsigned char key, int pX, int pY) {
       break;
     case 's':
       q -= 0.1f;
+      break;
+    case ' ':
+      m1 = Molecule();
+      m1.create();
+      m2 = Molecule();
+      m2.create();
       break;
   }
   glutPostRedisplay(); // if d, invalidate display, i.e. redraw
@@ -397,6 +426,9 @@ void onMouse(int button, int state, int pX,
 
 // Idle event indicating that some time elapsed: do animation here
 void onIdle() {
-  long time = glutGet(
-      GLUT_ELAPSED_TIME);  // elapsed time since the start of the program
+  long time = glutGet(GLUT_ELAPSED_TIME);  // elapsed time since the start of the program
+  float sec = time / 1000.0f;  // convert msec to sec
+  m1.animate(sec);       // animate the triangle object
+  m2.animate(-sec/2);
+  glutPostRedisplay();         // redraw the scene
 }
