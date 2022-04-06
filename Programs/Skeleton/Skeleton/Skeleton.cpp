@@ -65,9 +65,26 @@ const char* const fragmentSource = R"(
 	}
 )";
 
+// 2D camera
+class Camera2D {
+  vec2 wCenter;  // center in world coordinates
+  vec2 wSize;    // width and height in world coordinates
+ public:
+  Camera2D() : wCenter(0, 0), wSize(200, 200) {}
+
+  mat4 V() { return TranslateMatrix(-wCenter); }
+  mat4 P() { return ScaleMatrix(vec2(2 / wSize.x, 2 / wSize.y)); }
+
+  mat4 Vinv() { return TranslateMatrix(wCenter); }
+  mat4 Pinv() { return ScaleMatrix(vec2(wSize.x / 2, wSize.y / 2)); }
+
+  void Zoom(float s) { wSize = wSize * s; }
+  void Pan(vec2 t) { wCenter = wCenter + t; }
+};
+
+Camera2D camera;            // 2D camera
 GPUProgram gpuProgram;      // vertex and fragment shaders
-float p = 0.0f, q = 0.0f;   // the value of the shifting  p: y-axis q:x-axis 
-int transform = 1;          // for testing
+int transform = 0;          // for testing
 
 vec4 projectToHyperboloid(vec4 v) {
   if (transform)
@@ -300,7 +317,7 @@ class Molecule {
 
 
   void draw() {
-          mat4 MVPTransform = M();      //TODO
+          mat4 MVPTransform = M() * camera.V();
     gpuProgram.setUniform(MVPTransform, "MVP");
 
     for (unsigned int i = 0; i < bonds.size(); i++) {
@@ -333,24 +350,9 @@ void onDisplay() {
 
   glClearColor((GLclampf)0.2, (GLclampf)0.2, (GLclampf)0.2, (GLclampf)0);     // background color
   glClear(GL_COLOR_BUFFER_BIT);    // clear frame buffer
-
-  vec4 shift = projectToDisc(projectToHyperboloid(vec4(q,p,0,1))); 
-  float MVPtransf[4][4] = {
-      1, 0, 0, 0,  // MVP matrix,
-      0, 1, 0, 0,  // row-major!
-      0, 0, 1, 0, 
-      shift.x, shift.y, 0, 1
-  };
-
-  int location = glGetUniformLocation(
-      gpuProgram.getId(),
-      "MVP");               // Get the GPU location of uniform variable MVP
-
-  glUniformMatrix4fv(location, 1, GL_TRUE,
-                     &MVPtransf[0][0]);  // Load a 4x4 row-major float matrix to
-
-    m1.draw();
-    m2.draw(); 
+    
+  m1.draw();
+  m2.draw(); 
 
   glutSwapBuffers();        // exchange buffers for double buffering
 }
@@ -358,17 +360,17 @@ void onDisplay() {
 // Key of ASCII code pressed
 void onKeyboard(unsigned char key, int pX, int pY) {
   switch (key) {
-    case 'e':
-      p += 0.1f;
-      break;
-    case 'x':
-      p -= 0.1f;
+    case 's':
+      camera.Pan(vec2(-0.1, 0.0));
       break;
     case 'd':
-      q += 0.1f;
+      camera.Pan(vec2(+0.1, 0.0));
       break;
-    case 's':
-      q -= 0.1f;
+    case 'e':
+      camera.Pan(vec2(0.0, 0.1));
+      break;
+    case 'x':
+      camera.Pan(vec2(0.0, -0.1));
       break;
     case ' ':
       m1 = Molecule();
