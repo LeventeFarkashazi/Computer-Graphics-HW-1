@@ -84,7 +84,7 @@ class Camera2D {
 
 Camera2D camera;            // 2D camera
 GPUProgram gpuProgram;      // vertex and fragment shaders
-int transform = 0;          // for testing
+int transform = 1;          // for testing
 
 vec4 projectToHyperboloid(vec4 v) {
   if (transform)
@@ -133,6 +133,10 @@ class Atom {
     float y = -sinf(angle) * (center.x - centerOfRotation.x) + cosf(angle) * (center.y - centerOfRotation.y) + centerOfRotation.y;    //modified with translating the point before totation  
     center.x = x;
     center.y = y;
+  }
+
+  void translate(vec4 translationVec) { 
+      center += translationVec;
   }
 
   void create() {
@@ -204,7 +208,12 @@ class Bond {
     atoms.at(1).center.y = y1;
   }
 
-  void calculateVerices() {
+  void translate(vec4 translationVec) { 
+    atoms.at(0).center += translationVec;
+    atoms.at(1).center += translationVec;
+  }
+
+  void calculatePoints() {
     points.clear();
     for (int i = 0; i <= nVertices; ++i) {  // linear interpollation between two known points 
       float xCoordinate = atoms.at(0).center.x + ((atoms.at(1).center.x - atoms.at(0).center.x) / (float)nVertices) * (float)i; 
@@ -214,7 +223,7 @@ class Bond {
   }
 
   void create() {
-    calculateVerices();
+    calculatePoints();
 
     glGenVertexArrays(1, &vao);         // Generate 1 array object
     glBindVertexArray(vao);             // bind array
@@ -231,7 +240,7 @@ class Bond {
 
   void draw() {
     // calculate points
-    calculateVerices();
+    calculatePoints();
 
     // projections all points to hiperboloid and back to disc
     for (unsigned int i = 0; i < points.size(); i++) {
@@ -267,6 +276,7 @@ class Molecule {
   std::vector<Atom> atoms;
   std::vector<Bond> bonds;
 
+
   Molecule() {
     nAtoms = rand() % 7 + 2;   // random between2 and 8
     nBonds = nAtoms - 1;       // tree => edges == atoms-1
@@ -277,7 +287,7 @@ class Molecule {
     int chargeSum;
     bool zeroCharge = false;
 
-    //generate randomized charges, try until sum of charge is 0
+    // generate randomized charges, try until sum of charge is 0
     while (!zeroCharge) {   
       charges.clear();
       chargeSum = 0;
@@ -293,15 +303,15 @@ class Molecule {
       }
     }
 
-    //TODO documentation
+    // generate atoms 
     for (int i = 0; i < nAtoms; i++) {
       Atom newAtom = Atom(0, 0, 0);
       
-      if (!atoms.empty()) {
-        Atom pair = atoms.at(rand() % atoms.size());
+      if (!atoms.empty()) {     // every atom after first
+        Atom pair = atoms.at(rand() % atoms.size()); // connect with a bond to another atom randomly (grow the tree with 1 node) => no circles
 
         int badPosition = 1;
-        while (badPosition) {
+        while (badPosition) {   //regenerate if out of frame
           float randomPhi = ((float)(rand() % 10001) / 10000) * 2.0f * (float)M_PI;                     // random phi between 0 and (2 * (float)M_PI) radian
           newAtom.center = pair.center + vec4(cosf(randomPhi), sinf(randomPhi), 0, 1) * atomDistance;   // random directional unit vector * distance
 
@@ -323,7 +333,8 @@ class Molecule {
       atoms.push_back(newAtom);
     }
   }
-
+  
+  // initialize all components
   void create() {
     for (unsigned int i = 0; i < bonds.size(); i++) {
       bonds.at(i).create();
@@ -334,7 +345,7 @@ class Molecule {
     }
   }
 
-  //rotate alla atoms and bonds around mass center clockwise
+  // rotate all atoms and bonds around mass center clockwise
   void rotate(float angle) {
     for (int i = 0; i < nAtoms; i++) {
       atoms.at(i).rotate(massCenter, angle);
@@ -345,10 +356,23 @@ class Molecule {
     }
   }
 
-  void draw() {
-    mat4 MVPTransform = camera.V();                 //TODO
-    gpuProgram.setUniform(MVPTransform, "MVP");
+  // translate all atoms and bonds with a given vector
+  void translate(vec4 translationVec) {
+    for (int i = 0; i < nAtoms; i++) {
+        atoms.at(i).translate(translationVec);
+    }
 
+    for (unsigned int i = 0; i < bonds.size(); i++) {
+      bonds.at(i).translate(translationVec);
+    }
+  }
+
+  // draw all components
+  void draw() {
+    /*
+    mat4 MVPTransform = camera.V();                 //can be in classes own draw
+    gpuProgram.setUniform(MVPTransform, "MVP");
+    */
     for (unsigned int i = 0; i < bonds.size(); i++) {
       bonds.at(i).draw();
     }
@@ -361,17 +385,17 @@ class Molecule {
 
 Molecule m1;
 Molecule m2;
-Atom a1 = Atom(0.0f, 0.0f, -10);                    //origo for
+// Atom a1 = Atom(0.0f, 0.0f, 10);                    //origo (testing reference point)
 
 // Initialization, create an OpenGL context
 void onInitialization() {
   glViewport(0, 0, windowWidth, windowHeight);      // Position and size of the photograph on screen
 
   // Initialize the components of the molecule
-  //m1.create();
-  //m2.create();
+  m1.create();
+  m2.create();
 
-  a1.create();
+  //a1.create();
 
   // create program for the GPU
   gpuProgram.create(vertexSource, fragmentSource, "outColor");
@@ -386,9 +410,9 @@ void onDisplay() {
   m1.draw();
   m2.draw(); 
   
-          mat4 MVPTransform = camera.V();
-  gpuProgram.setUniform(MVPTransform, "MVP");
-  a1.draw();
+ mat4 MVPTransform = camera.V();
+ gpuProgram.setUniform(MVPTransform, "MVP");
+ // a1.draw();
 
   glutSwapBuffers();        // exchange buffers for double buffering
 }
@@ -414,9 +438,9 @@ void onKeyboard(unsigned char key, int pX, int pY) {
       m2 = Molecule();
       m2.create();
       break;
-    case 't':
-      m1.rotate(0.5);
-      m2.rotate(0.5);
+    case 'r':
+      m1.rotate(-0.3f);
+      m2.rotate(-0.3f);
       break;
   }
   glutPostRedisplay(); // if d, invalidate display, i.e. redraw
@@ -470,7 +494,9 @@ void onMouse(int button, int state, int pX,
 void onIdle() {
   long time = glutGet(GLUT_ELAPSED_TIME);  // elapsed time since the start of the program
   float sec = time / 1000.0f;  // convert msec to sec
-  m1.animate(sec);       // animate the triangle object
-  m2.animate(-sec/2);
+  m1.rotate(-0.001f);
+  m2.rotate(0.002f);
+  m1.translate(vec4(0.0f, 0.0004f, 0.0f, 1.0f));
+  m2.translate(vec4(-0.0002f, -0.0002f, 0.0f, 1.0f));
   glutPostRedisplay();         // redraw the scene
 }
