@@ -84,7 +84,7 @@ class Camera2D {
 
 Camera2D camera;            // 2D camera
 GPUProgram gpuProgram;      // vertex and fragment shaders
-int transform = 1;          // for testing
+int transform = 0;          // for testing
 
 vec4 projectToHyperboloid(vec4 v) {
   if (transform)
@@ -134,14 +134,6 @@ class Atom {
     float y = sinf(angle) * (center.x - centerOfRotation.x) + cosf(angle) * (center.y - centerOfRotation.y) + centerOfRotation.y;
     center.x = x;
     center.y = y;
-
-    calculateVerices();
-    glBindBuffer(GL_ARRAY_BUFFER, vbo);
-
-    glBufferData(GL_ARRAY_BUFFER,           // copy to the GPU
-                 nVertices * sizeof(vec4),  // number of the vbo in bytes
-                 &points[0],  // address of the data array on the CPU
-                 GL_STATIC_DRAW);
   }
 
   void create() {
@@ -176,6 +168,13 @@ class Atom {
         }
 
         glBindVertexArray(vao);
+        
+        glBindBuffer(GL_ARRAY_BUFFER, vbo);
+        glBufferData(GL_ARRAY_BUFFER,           // copy to the GPU
+                     nVertices * sizeof(vec4),  // number of the vbo in bytes
+                     &points[0],  // address of the data array on the CPU
+                     GL_STATIC_DRAW);
+
         glDrawArrays(GL_TRIANGLE_FAN, 0, nVertices);
     }
 
@@ -192,6 +191,26 @@ class Bond {
   Bond(Atom a, Atom b) {
     atoms.push_back(a);
     atoms.push_back(b);
+  }
+
+  void rotate(vec4 centerOfRotation, float angle) {
+    float x0 = cosf(angle) * (atoms.at(0).center.x - centerOfRotation.x) -
+               sinf(angle) * (atoms.at(0).center.y - centerOfRotation.y) +
+               centerOfRotation.x;
+    float y0 = sinf(angle) * (atoms.at(0).center.x - centerOfRotation.x) +
+               cosf(angle) * (atoms.at(0).center.y - centerOfRotation.y) +
+               centerOfRotation.y;
+    atoms.at(0).center.x = x0;
+    atoms.at(0).center.y = y0;
+
+    float x1 = cosf(angle) * (atoms.at(1).center.x - centerOfRotation.x) -
+               sinf(angle) * (atoms.at(1).center.y - centerOfRotation.y) +
+              centerOfRotation.x;
+    float y1 = sinf(angle) * (atoms.at(1).center.x - centerOfRotation.x) +
+               cosf(angle) * (atoms.at(1).center.y - centerOfRotation.y) +
+              centerOfRotation.y;
+    atoms.at(1).center.x = x1;
+    atoms.at(1).center.y = y1;
   }
 
   void calculateVerices() {
@@ -232,6 +251,13 @@ class Bond {
     glUniform3f(location, 1.0f, 1.0f, 1.0f);  // 3 floats
 
     glBindVertexArray(vao);
+
+    glBindBuffer(GL_ARRAY_BUFFER, vbo);
+    glBufferData(GL_ARRAY_BUFFER,           // copy to the GPU
+                 nVertices * sizeof(vec4),  // number of the vbo in bytes
+                 &points[0],  // address of the data array on the CPU
+                 GL_STATIC_DRAW);
+
     glDrawArrays(GL_LINE_STRIP, 0, nVertices);
   }
 };
@@ -316,6 +342,16 @@ class Molecule {
     }
   }
 
+  void rotate(float angle) {
+    for (int i = 0; i < nAtoms; i++) {
+      atoms.at(i).rotate(massCenter, angle);
+    }
+
+    for (unsigned int i = 0; i < bonds.size(); i++) {
+      bonds.at(i).rotate(massCenter, angle);
+    }
+  }
+
   void animate(float t) { 
      phi = t;
      wTranslate = vec2(0, 0);
@@ -336,13 +372,7 @@ class Molecule {
 	}
 
   void draw() {
-          /*
-    for (int i = 0; i < nAtoms; i++) {
-      atoms.at(i).rotate(massCenter, 0.01f);
-    }
-    */
-
-    mat4 MVPTransform = camera.V() * M();
+    mat4 MVPTransform = camera.V();// *M();
     gpuProgram.setUniform(MVPTransform, "MVP");
 
     for (unsigned int i = 0; i < bonds.size(); i++) {
@@ -393,16 +423,16 @@ void onDisplay() {
 // Key of ASCII code pressed
 void onKeyboard(unsigned char key, int pX, int pY) {
   switch (key) {
-    case 's':
+    case 'd':
       camera.Pan(vec2(-0.1f, 0.0f));
       break;
-    case 'd':
+    case 's':
       camera.Pan(vec2(+0.1f, 0.0f));
       break;
-    case 'e':
+    case 'x':
       camera.Pan(vec2(0.0f, 0.1f));
       break;
-    case 'x':
+    case 'e':
       camera.Pan(vec2(0.0f, -0.1f));
       break;
     case ' ':
@@ -410,6 +440,10 @@ void onKeyboard(unsigned char key, int pX, int pY) {
       m1.create();
       m2 = Molecule();
       m2.create();
+      break;
+    case 't':
+      m1.rotate(0.5);
+      m2.rotate(0.5);
       break;
   }
   glutPostRedisplay(); // if d, invalidate display, i.e. redraw
@@ -465,6 +499,5 @@ void onIdle() {
   float sec = time / 1000.0f;  // convert msec to sec
   m1.animate(sec);       // animate the triangle object
   m2.animate(-sec/2);
-  
   glutPostRedisplay();         // redraw the scene
 }
