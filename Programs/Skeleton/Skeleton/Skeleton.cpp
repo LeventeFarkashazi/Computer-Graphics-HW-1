@@ -84,7 +84,7 @@ class Camera2D {
 
 Camera2D camera;            // 2D camera
 GPUProgram gpuProgram;      // vertex and fragment shaders
-int transform = 0;          // for testing
+int transform = 1;          // for testing
 
 vec4 projectToHyperboloid(vec4 v) {
   if (transform)
@@ -128,6 +128,22 @@ class Atom {
     }
   }
 
+  void rotate(vec4 centerOfRotation, float angle) {
+    
+    float x = cosf(angle) * (center.x - centerOfRotation.x) - sinf(angle) * (center.y - centerOfRotation.y) + centerOfRotation.x;
+    float y = sinf(angle) * (center.x - centerOfRotation.x) + cosf(angle) * (center.y - centerOfRotation.y) + centerOfRotation.y;
+    center.x = x;
+    center.y = y;
+
+    calculateVerices();
+    glBindBuffer(GL_ARRAY_BUFFER, vbo);
+
+    glBufferData(GL_ARRAY_BUFFER,           // copy to the GPU
+                 nVertices * sizeof(vec4),  // number of the vbo in bytes
+                 &points[0],  // address of the data array on the CPU
+                 GL_STATIC_DRAW);
+  }
+
   void create() {
     calculateVerices();
 
@@ -150,7 +166,8 @@ class Atom {
   }
 
     void draw() {
-    
+        calculateVerices();
+     
         int location = glGetUniformLocation(gpuProgram.getId(), "color");
         if (charge < 0)
             glUniform3f(location, 0.0f, 0.0f, (float)-1 * charge / 10); // blue between 0 and 1 (need to be positive...)
@@ -209,6 +226,8 @@ class Bond {
   }
 
   void draw() {
+    calculateVerices();
+    
     int location = glGetUniformLocation(gpuProgram.getId(), "color");
     glUniform3f(location, 1.0f, 1.0f, 1.0f);  // 3 floats
 
@@ -225,7 +244,7 @@ class Molecule {
   vec2 wTranslate;              // translation
   float phi;                    // rotation
 
-  vec4 massCenter;
+  vec4 massCenter;              //TODO
 
   std::vector<Atom> atoms;
   std::vector<Bond> bonds;
@@ -281,6 +300,7 @@ class Molecule {
         newAtom.center.x = (float)(rand() % 201 - 100) / 100;
         newAtom.center.y = (float)(rand() % 201 - 100) / 100;
         newAtom.charge = charges.at(i);
+        massCenter = newAtom.center;
       }
       atoms.push_back(newAtom);
     }
@@ -315,9 +335,14 @@ class Molecule {
 		return Mrotate * Mtranslate;	// model transformation
 	}
 
-
   void draw() {
-          mat4 MVPTransform = M() * camera.V();
+          /*
+    for (int i = 0; i < nAtoms; i++) {
+      atoms.at(i).rotate(massCenter, 0.01f);
+    }
+    */
+
+    mat4 MVPTransform = camera.V() * M();
     gpuProgram.setUniform(MVPTransform, "MVP");
 
     for (unsigned int i = 0; i < bonds.size(); i++) {
@@ -332,6 +357,7 @@ class Molecule {
 
 Molecule m1;
 Molecule m2;
+Atom a1 = Atom(0.0f, 0.0f, -10);
 
 // Initialization, create an OpenGL context
 void onInitialization() {
@@ -340,6 +366,8 @@ void onInitialization() {
   // Initialize the components of the molecule
   m1.create();
   m2.create();
+
+  a1.create();
 
   // create program for the GPU
   gpuProgram.create(vertexSource, fragmentSource, "outColor");
@@ -354,6 +382,11 @@ void onDisplay() {
   m1.draw();
   m2.draw(); 
 
+  
+          mat4 MVPTransform = camera.V();
+  gpuProgram.setUniform(MVPTransform, "MVP");
+  a1.draw();
+
   glutSwapBuffers();        // exchange buffers for double buffering
 }
 
@@ -361,16 +394,16 @@ void onDisplay() {
 void onKeyboard(unsigned char key, int pX, int pY) {
   switch (key) {
     case 's':
-      camera.Pan(vec2(-0.1, 0.0));
+      camera.Pan(vec2(-0.1f, 0.0f));
       break;
     case 'd':
-      camera.Pan(vec2(+0.1, 0.0));
+      camera.Pan(vec2(+0.1f, 0.0f));
       break;
     case 'e':
-      camera.Pan(vec2(0.0, 0.1));
+      camera.Pan(vec2(0.0f, 0.1f));
       break;
     case 'x':
-      camera.Pan(vec2(0.0, -0.1));
+      camera.Pan(vec2(0.0f, -0.1f));
       break;
     case ' ':
       m1 = Molecule();
@@ -432,5 +465,6 @@ void onIdle() {
   float sec = time / 1000.0f;  // convert msec to sec
   m1.animate(sec);       // animate the triangle object
   m2.animate(-sec/2);
+  
   glutPostRedisplay();         // redraw the scene
 }
