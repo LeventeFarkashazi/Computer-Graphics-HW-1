@@ -118,37 +118,30 @@ class Atom {
     radius = (float)mass / 100;
   }
 
-  void calculateVerices() {
+  void calculatePoints() {
     points.clear();
     for (int i = 0; i < nVertices; i++) {
       float phi = (float)i * 2.0f * (float)M_PI / (float)nVertices;     //phi angle from the unit circle in radian 
-      points.push_back(projectToDisc(projectToHyperboloid(vec4(
+      points.push_back(vec4(
             cosf(phi) * radius + center.x,                              //unit circle points * radius + center offset
-            sinf(phi) * radius + center.y, 0, 1))));
+            sinf(phi) * radius + center.y, 0, 1));
     }
   }
 
-  void rotate(vec4 centerOfRotation, float angle) {
-    
-    float x = cosf(angle) * (center.x - centerOfRotation.x) - sinf(angle) * (center.y - centerOfRotation.y) + centerOfRotation.x;
-    float y = sinf(angle) * (center.x - centerOfRotation.x) + cosf(angle) * (center.y - centerOfRotation.y) + centerOfRotation.y;
+  void rotate(vec4 centerOfRotation, float angle) {     //clockwise
+    float x = cosf(angle) * (center.x - centerOfRotation.x) + sinf(angle) * (center.y - centerOfRotation.y) + centerOfRotation.x;    //formula: https://en.wikipedia.org/wiki/Rotation_of_axes
+    float y = -sinf(angle) * (center.x - centerOfRotation.x) + cosf(angle) * (center.y - centerOfRotation.y) + centerOfRotation.y;    //modified with translating the point before totation  
     center.x = x;
     center.y = y;
   }
 
   void create() {
-    calculateVerices();
 
-    glGenVertexArrays(1, &vao);
-    glBindVertexArray(vao);
+    glGenVertexArrays(1, &vao);             // Generate 1 array object
+    glBindVertexArray(vao);                 // bind array
 
-    glGenBuffers(1, &vbo);                  // Generate 1 buffer
-    glBindBuffer(GL_ARRAY_BUFFER, vbo);
-
-     glBufferData(GL_ARRAY_BUFFER,          // copy to the GPU
-                 nVertices * sizeof(vec4),  // number of the vbo in bytes
-                 &points[0],                // address of the data array on the CPU
-                 GL_STATIC_DRAW);           // copy to that part of the memory which is not modified 
+    glGenBuffers(1, &vbo);                  // Generate 1 buffer object
+    glBindBuffer(GL_ARRAY_BUFFER, vbo);     // bind buffer
 
     glEnableVertexAttribArray(0);           // AttribArray 0
     glVertexAttribPointer(
@@ -158,35 +151,41 @@ class Atom {
   }
 
     void draw() {
-        calculateVerices();
-     
-        int location = glGetUniformLocation(gpuProgram.getId(), "color");
+        //calculate points
+        calculatePoints();
+        
+        //projections all points to hiperboloid and back to disc
+        for (unsigned int i = 0; i < points.size(); i++) {
+          points.at(i) = projectToDisc(projectToHyperboloid(points.at(i)));
+        }
+        
+        //set color (different intensity blue or red)
+        int location = glGetUniformLocation(gpuProgram.getId(), "color");   
         if (charge < 0)
-            glUniform3f(location, 0.0f, 0.0f, (float)-1 * charge / 10); // blue between 0 and 1 (need to be positive...)
+            glUniform3f(location, 0.0f, 0.0f, (float)-1 * charge / 10);     // blue between 0 and 1 (need to be positive...)
         else {
-            glUniform3f(location, (float)charge / 10, 0.0f, 0.0f);      // red between 0 and 1
+            glUniform3f(location, (float)charge / 10, 0.0f, 0.0f);          // red between 0 and 1
         }
 
-        glBindVertexArray(vao);
+        glBindVertexArray(vao);                 //bind vao
         
         glBindBuffer(GL_ARRAY_BUFFER, vbo);
         glBufferData(GL_ARRAY_BUFFER,           // copy to the GPU
                      nVertices * sizeof(vec4),  // number of the vbo in bytes
-                     &points[0],  // address of the data array on the CPU
+                     &points[0],                // address of the data array on the CPU
                      GL_STATIC_DRAW);
 
         glDrawArrays(GL_TRIANGLE_FAN, 0, nVertices);
     }
-
 };
 
 class Bond {
-  unsigned int vao, vbo;        // vertex buffer object
-  const int nVertices = 50;     //the "resolution"
+  unsigned int vao, vbo;     // vertex buffer object
+  const int nVertices = 50;  // the "resolution"
 
  public:
   std::vector<vec4> points;
-  std::vector<Atom> atoms;      //2 atoms
+  std::vector<Atom> atoms;
 
   Bond(Atom a, Atom b) {
     atoms.push_back(a);
@@ -194,29 +193,21 @@ class Bond {
   }
 
   void rotate(vec4 centerOfRotation, float angle) {
-    float x0 = cosf(angle) * (atoms.at(0).center.x - centerOfRotation.x) -
-               sinf(angle) * (atoms.at(0).center.y - centerOfRotation.y) +
-               centerOfRotation.x;
-    float y0 = sinf(angle) * (atoms.at(0).center.x - centerOfRotation.x) +
-               cosf(angle) * (atoms.at(0).center.y - centerOfRotation.y) +
-               centerOfRotation.y;
+    float x0 = cosf(angle) * (atoms.at(0).center.x - centerOfRotation.x) + sinf(angle) * (atoms.at(0).center.y - centerOfRotation.y) + centerOfRotation.x;
+    float y0 = -sinf(angle) * (atoms.at(0).center.x - centerOfRotation.x) + cosf(angle) * (atoms.at(0).center.y - centerOfRotation.y) + centerOfRotation.y;
     atoms.at(0).center.x = x0;
     atoms.at(0).center.y = y0;
 
-    float x1 = cosf(angle) * (atoms.at(1).center.x - centerOfRotation.x) -
-               sinf(angle) * (atoms.at(1).center.y - centerOfRotation.y) +
-              centerOfRotation.x;
-    float y1 = sinf(angle) * (atoms.at(1).center.x - centerOfRotation.x) +
-               cosf(angle) * (atoms.at(1).center.y - centerOfRotation.y) +
-              centerOfRotation.y;
+    float x1 = cosf(angle) * (atoms.at(1).center.x - centerOfRotation.x) + sinf(angle) * (atoms.at(1).center.y - centerOfRotation.y) + centerOfRotation.x;
+    float y1 = -sinf(angle) * (atoms.at(1).center.x - centerOfRotation.x) + cosf(angle) * (atoms.at(1).center.y - centerOfRotation.y) + centerOfRotation.y;
     atoms.at(1).center.x = x1;
     atoms.at(1).center.y = y1;
   }
 
   void calculateVerices() {
     points.clear();
-    for (int i = 0; i <= nVertices; ++i) {                                     //linear interpollation between two known points
-      float xCoordinate = atoms.at(0).center.x + ((atoms.at(1).center.x - atoms.at(0).center.x) / (float)nVertices) * (float)i;
+    for (int i = 0; i <= nVertices; ++i) {  // linear interpollation between two known points 
+      float xCoordinate = atoms.at(0).center.x + ((atoms.at(1).center.x - atoms.at(0).center.x) / (float)nVertices) * (float)i; 
       float yCoordinate = atoms.at(0).center.y + ((atoms.at(1).center.y - atoms.at(0).center.y) / (float)nVertices) * (float)i;
       points.push_back(vec4(xCoordinate, yCoordinate, 0, 1));
     }
@@ -224,38 +215,39 @@ class Bond {
 
   void create() {
     calculateVerices();
-    
-    for (int i = 0; i < nVertices; i++) {
-      points.at(i) = projectToDisc(projectToHyperboloid(points.at(i)));
-    }
 
-    glGenVertexArrays(1, &vao);
-    glBindVertexArray(vao);
+    glGenVertexArrays(1, &vao);         // Generate 1 array object
+    glBindVertexArray(vao);             // bind array
 
     glGenBuffers(1, &vbo);              // Generate 1 buffer
     glBindBuffer(GL_ARRAY_BUFFER, vbo);
 
-    glBufferData(GL_ARRAY_BUFFER, nVertices * sizeof(vec4), &points[0], GL_STATIC_DRAW);
-  
-      glEnableVertexAttribArray(0);     // AttribArray 0
+    glEnableVertexAttribArray(0);  // AttribArray 0
     glVertexAttribPointer(
-        0,                              // vbo -> AttribArray 0
-        2, GL_FLOAT, GL_FALSE,          // two floats/attrib, not fixed-point
-        sizeof(float) * 4, NULL);       // stride, offset: tightly packed
+        0,                         // vbo -> AttribArray 0
+        2, GL_FLOAT, GL_FALSE,     // two floats/attrib, not fixed-point
+        sizeof(float) * 4, NULL);  // stride, offset: tightly packed
   }
 
   void draw() {
+    // calculate points
     calculateVerices();
-    
+
+    // projections all points to hiperboloid and back to disc
+    for (unsigned int i = 0; i < points.size(); i++) {
+      points.at(i) = projectToDisc(projectToHyperboloid(points.at(i)));
+    }
+
+    // set color
     int location = glGetUniformLocation(gpuProgram.getId(), "color");
-    glUniform3f(location, 1.0f, 1.0f, 1.0f);  // 3 floats
+    glUniform3f(location, 1.0f, 1.0f, 1.0f);// white
 
-    glBindVertexArray(vao);
+    glBindVertexArray(vao);                 // bind vao
 
-    glBindBuffer(GL_ARRAY_BUFFER, vbo);
+    glBindBuffer(GL_ARRAY_BUFFER, vbo);     // bind vbo 
     glBufferData(GL_ARRAY_BUFFER,           // copy to the GPU
                  nVertices * sizeof(vec4),  // number of the vbo in bytes
-                 &points[0],  // address of the data array on the CPU
+                 &points[0],                // address of the data array on the CPU
                  GL_STATIC_DRAW);
 
     glDrawArrays(GL_LINE_STRIP, 0, nVertices);
@@ -276,18 +268,17 @@ class Molecule {
   std::vector<Bond> bonds;
 
   Molecule() {
-    nAtoms = rand() % 7 + 2;
-    nBonds = nAtoms - 1;
+    nAtoms = rand() % 7 + 2;   // random between2 and 8
+    nBonds = nAtoms - 1;       // tree => edges == atoms-1
     
-    animate(0);
-
     std::vector<int> charges;
 
     int randomCharge;
     int chargeSum;
     bool zeroCharge = false;
 
-    while (!zeroCharge) {   //try until charge is 0
+    //generate randomized charges, try until sum of charge is 0
+    while (!zeroCharge) {   
       charges.clear();
       chargeSum = 0;
 
@@ -302,6 +293,7 @@ class Molecule {
       }
     }
 
+    //TODO documentation
     for (int i = 0; i < nAtoms; i++) {
       Atom newAtom = Atom(0, 0, 0);
       
@@ -342,6 +334,7 @@ class Molecule {
     }
   }
 
+  //rotate alla atoms and bonds around mass center clockwise
   void rotate(float angle) {
     for (int i = 0; i < nAtoms; i++) {
       atoms.at(i).rotate(massCenter, angle);
@@ -352,27 +345,8 @@ class Molecule {
     }
   }
 
-  void animate(float t) { 
-     phi = t;
-     wTranslate = vec2(0, 0);
-  }
-
-  mat4 M() {
-		mat4 Mrotate(cosf(phi), sinf(phi), 0, 0,
-			        -sinf(phi), cosf(phi), 0, 0,
-			           0,        0,        1, 0,
-			           0,        0,        0, 1); // rotation
-
-		mat4 Mtranslate(1,            0,            0, 0,
-			            0,            1,            0, 0,
-			            0,            0,            0, 0,
-			            wTranslate.x, wTranslate.y, 0, 1); // translation
-
-		return Mrotate * Mtranslate;	// model transformation
-	}
-
   void draw() {
-    mat4 MVPTransform = camera.V();// *M();
+    mat4 MVPTransform = camera.V();                 //TODO
     gpuProgram.setUniform(MVPTransform, "MVP");
 
     for (unsigned int i = 0; i < bonds.size(); i++) {
@@ -387,15 +361,15 @@ class Molecule {
 
 Molecule m1;
 Molecule m2;
-Atom a1 = Atom(0.0f, 0.0f, -10);
+Atom a1 = Atom(0.0f, 0.0f, -10);                    //origo for
 
 // Initialization, create an OpenGL context
 void onInitialization() {
   glViewport(0, 0, windowWidth, windowHeight);      // Position and size of the photograph on screen
 
   // Initialize the components of the molecule
-  m1.create();
-  m2.create();
+  //m1.create();
+  //m2.create();
 
   a1.create();
 
@@ -411,7 +385,6 @@ void onDisplay() {
     
   m1.draw();
   m2.draw(); 
-
   
           mat4 MVPTransform = camera.V();
   gpuProgram.setUniform(MVPTransform, "MVP");
