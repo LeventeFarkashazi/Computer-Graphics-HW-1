@@ -265,22 +265,21 @@ class Bond {
 
 class Molecule {
  public:
-  int nAtoms;                   // random between2 and 8
-  int nBonds;                   // tree => edges == atoms-1
-  float atomDistance = 0.3f;    // between centers
-  vec2 wTranslate;              // translation
-  float phi;                    // rotation
+  int nAtoms;                 // random between2 and 8
+  int nBonds;                 // tree => edges == atoms-1
+  float atomDistance = 0.3f;  // between centers
+  vec2 wTranslate;            // translation
+  float phi;                  // rotation
 
-  vec4 massCenter;              //TODO
+  vec4 centerOfMass;  // TODO
 
   std::vector<Atom> atoms;
   std::vector<Bond> bonds;
 
-
   Molecule() {
-    nAtoms = rand() % 7 + 2;   // random between2 and 8
-    nBonds = nAtoms - 1;       // tree => edges == atoms-1
-    
+    nAtoms = rand() % 7 + 2;  // random between2 and 8
+    nBonds = nAtoms - 1;      // tree => edges == atoms-1
+
     std::vector<int> charges;
 
     int randomCharge;
@@ -288,12 +287,12 @@ class Molecule {
     bool zeroCharge = false;
 
     // generate randomized charges, try until sum of charge is 0
-    while (!zeroCharge) {   
+    while (!zeroCharge) {
       charges.clear();
       chargeSum = 0;
 
       for (int i = 0; i < nAtoms; i++) {
-        randomCharge = rand() % 21 - 10; //random between -10 and 10;
+        randomCharge = rand() % 21 - 10;  // random between -10 and 10;
         chargeSum += randomCharge;
         charges.push_back(randomCharge);
       }
@@ -303,37 +302,66 @@ class Molecule {
       }
     }
 
-    // generate atoms 
+    // generate atoms
     for (int i = 0; i < nAtoms; i++) {
       Atom newAtom = Atom(0, 0, 0);
-      
-      if (!atoms.empty()) {     // every atom after first
-        Atom pair = atoms.at(rand() % atoms.size()); // connect with a bond to another atom randomly (grow the tree with 1 node) => no circles
+
+      if (!atoms.empty()) {  // every atom after first
+        Atom pair = atoms.at(
+            rand() %
+            atoms.size());  // connect with a bond to another atom randomly
+                            // (grow the tree with 1 node) => no circles
 
         int badPosition = 1;
-        while (badPosition) {   //regenerate if out of frame
-          float randomPhi = ((float)(rand() % 10001) / 10000) * 2.0f * (float)M_PI;                     // random phi between 0 and (2 * (float)M_PI) radian
-          newAtom.center = pair.center + vec4(cosf(randomPhi), sinf(randomPhi), 0, 1) * atomDistance;   // random directional unit vector * distance
+        while (badPosition) {  // regenerate if out of frame
+          float randomPhi =
+              ((float)(rand() % 10001) / 10000) * 2.0f *
+              (float)M_PI;  // random phi between 0 and (2 * (float)M_PI) radian
+          newAtom.center =
+              pair.center +
+              vec4(cosf(randomPhi), sinf(randomPhi), 0, 1) *
+                  atomDistance;  // random directional unit vector * distance
 
-          if (-1 < newAtom.center.x && newAtom.center.x < 1 &&      // atoms can't be initializes out of frame
-              -1 < newAtom.center.y && newAtom.center.y < 1) {  
+          if (-1 < newAtom.center.x &&
+              newAtom.center.x <
+                  1 &&  // atoms can't be initializes out of frame
+              -1 < newAtom.center.y &&
+              newAtom.center.y < 1) {
             badPosition = 0;
           }
         }
 
-        newAtom.charge = charges.at(i);                             //precalculated charge
+        newAtom.charge = charges.at(i);  // precalculated charge
 
         bonds.push_back(Bond(newAtom, pair));
-      } else {                                                     //first atom ("root" of tree)
+      } else {  // first atom ("root" of tree)
         newAtom.center.x = (float)(rand() % 201 - 100) / 100;
         newAtom.center.y = (float)(rand() % 201 - 100) / 100;
         newAtom.charge = charges.at(i);
-        massCenter = newAtom.center;
       }
       atoms.push_back(newAtom);
     }
+
+    calcCenterOfMass();
   }
+
+  void calcCenterOfMass() {
+    // formula: http://www.batesville.k12.in.us/physics/apphynet/dynamics/center%20of%20mass/2d_1.html
+
+    float sumMass_x_Xcord = 0.0f;
+    float sumMass_x_Ycord = 0.0f;
+    float sumMass = 0.0f;
+
+    for (int i = 0; i < nAtoms; i++) {
+      sumMass_x_Xcord += atoms.at(i).mass * atoms.at(i).center.x;
+      sumMass_x_Ycord += atoms.at(i).mass * atoms.at(i).center.y;
+      sumMass += atoms.at(i).mass;
+    }
+
+    centerOfMass = vec4(sumMass_x_Xcord / sumMass, sumMass_x_Ycord / sumMass, 0, 1);
   
+  }
+
   // initialize all components
   void create() {
     for (unsigned int i = 0; i < bonds.size(); i++) {
@@ -345,14 +373,16 @@ class Molecule {
     }
   }
 
-  // rotate all atoms and bonds around mass center clockwise
+  // rotate all atoms and bonds around center of mass clockwise
   void rotate(float angle) {
+    calcCenterOfMass();
+
     for (int i = 0; i < nAtoms; i++) {
-      atoms.at(i).rotate(massCenter, angle);
+      atoms.at(i).rotate(centerOfMass, angle);
     }
 
     for (unsigned int i = 0; i < bonds.size(); i++) {
-      bonds.at(i).rotate(massCenter, angle);
+      bonds.at(i).rotate(centerOfMass, angle);
     }
   }
 
@@ -492,11 +522,14 @@ void onMouse(int button, int state, int pX,
 
 // Idle event indicating that some time elapsed: do animation here
 void onIdle() {
-  long time = glutGet(GLUT_ELAPSED_TIME);  // elapsed time since the start of the program
+  long time = glutGet(
+      GLUT_ELAPSED_TIME);      // elapsed time since the start of the program
   float sec = time / 1000.0f;  // convert msec to sec
-  m1.rotate(-0.001f);
-  m2.rotate(0.002f);
-  m1.translate(vec4(0.0f, 0.0004f, 0.0f, 1.0f));
-  m2.translate(vec4(-0.0002f, -0.0002f, 0.0f, 1.0f));
-  glutPostRedisplay();         // redraw the scene
+  if (time % 10 ==0) {         // 0.01s time step
+    m1.rotate(-0.003f);
+    m2.rotate(0.005f);
+    m1.translate(vec4(0.0f, 0.004f, 0.0f, 1.0f));
+    m2.translate(vec4(-0.002f, -0.002f, 0.0f, 1.0f));
+    glutPostRedisplay();  // redraw the scene
+  }
 }
