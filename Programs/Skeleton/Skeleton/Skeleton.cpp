@@ -86,16 +86,21 @@ Camera2D camera;            // 2D camera
 GPUProgram gpuProgram;      // vertex and fragment shaders
 int transform = 1;          // for testing
 
-vec4 projectToHyperboloid(vec4 v) {
+float coulombConst = 8.988f * (float)pow(10, 9);
+float chargeUnit = 1.602f * (float)pow(10, -18);
+
+vec3 projectToHyperboloid(vec3 v) {
   if (transform)
-    return vec4(v.x, v.y, sqrtf(v.x * v.x + v.y * v.y + 1), v.w);
-  else return v;
+    return vec3(v.x, v.y, sqrtf(v.x * v.x + v.y * v.y + 1));
+  else
+    return v;
 }
 
-vec4 projectToDisc(vec4 v) {
+vec3 projectToDisc(vec3 v) {
   if (transform)
-    return vec4(v.x/(v.z + 1), v.y/(v.z + 1), 0, v.w);
-  else return v;
+    return vec3(v.x / (v.z + 1), v.y / (v.z + 1), 0);
+  else
+    return v;
 }
 
 class Atom {
@@ -106,37 +111,37 @@ class Atom {
   int mass;         // between 2 and 6
   int charge;       // between -10 and +10 (hidrogene: 1.60217 * 10^-19 C)
   float radius;     // calculated from mass (between 0.02 and 0.06)
-  vec4 center;
+  vec3 center;
 
-  std::vector<vec4> points;
+  std::vector<vec3> points;
 
   Atom(float x, float y, int c) {
     center.x = x;
     center.y = y;
     charge = c;
-    mass = (rand() % 5) + 2;
-    radius = (float)mass / 100;
+    mass = (rand() % 6) + 5;
+    radius = (float)mass / 80;
   }
 
   void calculatePoints() {
     points.clear();
     for (int i = 0; i < nVertices; i++) {
       float phi = (float)i * 2.0f * (float)M_PI / (float)nVertices;     //phi angle from the unit circle in radian 
-      points.push_back(vec4(
+      points.push_back(vec3(
             cosf(phi) * radius + center.x,                              //unit circle points * radius + center offset
-            sinf(phi) * radius + center.y, 0, 1));
+            sinf(phi) * radius + center.y, 0));
     }
   }
 
-  void rotate(vec4 centerOfRotation, float angle) {     //clockwise
+  void rotate(vec3 centerOfRotation, float angle) {     //clockwise
     float x = cosf(angle) * (center.x - centerOfRotation.x) + sinf(angle) * (center.y - centerOfRotation.y) + centerOfRotation.x;    //formula: https://en.wikipedia.org/wiki/Rotation_of_axes
     float y = -sinf(angle) * (center.x - centerOfRotation.x) + cosf(angle) * (center.y - centerOfRotation.y) + centerOfRotation.y;    //modified with translating the point before totation  
     center.x = x;
     center.y = y;
   }
 
-  void translate(vec4 translationVec) { 
-      center += translationVec;
+  void translate(vec3 translationVec) { 
+      center = center + translationVec;
   }
 
   void create() {
@@ -151,7 +156,7 @@ class Atom {
     glVertexAttribPointer(
     0,                                      // vbo -> AttribArray 0
     2, GL_FLOAT, GL_FALSE,                  // two floats/attrib, not fixed-point
-    sizeof(float) * 4, NULL);               // stride, offset: tightly packed
+    sizeof(float) * 3, NULL);               // stride, offset: tightly packed
   }
 
     void draw() {
@@ -175,7 +180,7 @@ class Atom {
         
         glBindBuffer(GL_ARRAY_BUFFER, vbo);
         glBufferData(GL_ARRAY_BUFFER,           // copy to the GPU
-                     nVertices * sizeof(vec4),  // number of the vbo in bytes
+                     nVertices * sizeof(vec3),  // number of the vbo in bytes
                      &points[0],                // address of the data array on the CPU
                      GL_STATIC_DRAW);
 
@@ -188,7 +193,7 @@ class Bond {
   const int nVertices = 50;  // the "resolution"
 
  public:
-  std::vector<vec4> points;
+  std::vector<vec3> points;
   std::vector<Atom> atoms;
 
   Bond(Atom a, Atom b) {
@@ -196,7 +201,7 @@ class Bond {
     atoms.push_back(b);
   }
 
-  void rotate(vec4 centerOfRotation, float angle) {
+  void rotate(vec3 centerOfRotation, float angle) {
     float x0 = cosf(angle) * (atoms.at(0).center.x - centerOfRotation.x) + sinf(angle) * (atoms.at(0).center.y - centerOfRotation.y) + centerOfRotation.x;
     float y0 = -sinf(angle) * (atoms.at(0).center.x - centerOfRotation.x) + cosf(angle) * (atoms.at(0).center.y - centerOfRotation.y) + centerOfRotation.y;
     atoms.at(0).center.x = x0;
@@ -208,9 +213,9 @@ class Bond {
     atoms.at(1).center.y = y1;
   }
 
-  void translate(vec4 translationVec) { 
-    atoms.at(0).center += translationVec;
-    atoms.at(1).center += translationVec;
+  void translate(vec3 translationVec) { 
+    atoms.at(0).center = atoms.at(0).center + translationVec;
+    atoms.at(1).center = atoms.at(1).center + translationVec;
   }
 
   void calculatePoints() {
@@ -218,7 +223,7 @@ class Bond {
     for (int i = 0; i <= nVertices; ++i) {  // linear interpollation between two known points 
       float xCoordinate = atoms.at(0).center.x + ((atoms.at(1).center.x - atoms.at(0).center.x) / (float)nVertices) * (float)i; 
       float yCoordinate = atoms.at(0).center.y + ((atoms.at(1).center.y - atoms.at(0).center.y) / (float)nVertices) * (float)i;
-      points.push_back(vec4(xCoordinate, yCoordinate, 0, 1));
+      points.push_back(vec3(xCoordinate, yCoordinate, 0));
     }
   }
 
@@ -235,7 +240,7 @@ class Bond {
     glVertexAttribPointer(
         0,                         // vbo -> AttribArray 0
         2, GL_FLOAT, GL_FALSE,     // two floats/attrib, not fixed-point
-        sizeof(float) * 4, NULL);  // stride, offset: tightly packed
+        sizeof(float) * 3, NULL);  // stride, offset: tightly packed
   }
 
   void draw() {
@@ -255,7 +260,7 @@ class Bond {
 
     glBindBuffer(GL_ARRAY_BUFFER, vbo);     // bind vbo 
     glBufferData(GL_ARRAY_BUFFER,           // copy to the GPU
-                 nVertices * sizeof(vec4),  // number of the vbo in bytes
+                 nVertices * sizeof(vec3),  // number of the vbo in bytes
                  &points[0],                // address of the data array on the CPU
                  GL_STATIC_DRAW);
 
@@ -267,11 +272,13 @@ class Molecule {
  public:
   int nAtoms;                 // random between2 and 8
   int nBonds;                 // tree => edges == atoms-1
-  float atomDistance = 0.3f;  // between centers
-  vec2 wTranslate;            // translation
-  float phi;                  // rotation
+  float atomDistance = 0.5f;  // between centers
+  vec3 wTranslate;            // translation world coordinates  [translation vector/0.01 sec]
+  float wRotation;            // rotation world coordinates     [angle/0.01 sec]
+ 
+  vec3 centerOfMass;          // calculated mass center
 
-  vec4 centerOfMass;  // TODO
+  std::vector<vec3> coulombForces;
 
   std::vector<Atom> atoms;
   std::vector<Bond> bonds;
@@ -279,6 +286,9 @@ class Molecule {
   Molecule() {
     nAtoms = rand() % 7 + 2;  // random between2 and 8
     nBonds = nAtoms - 1;      // tree => edges == atoms-1
+
+    wTranslate = vec3(0,0,0);
+    wRotation =0;
 
     std::vector<int> charges;
 
@@ -312,24 +322,14 @@ class Molecule {
             atoms.size());  // connect with a bond to another atom randomly
                             // (grow the tree with 1 node) => no circles
 
-        int badPosition = 1;
-        while (badPosition) {  // regenerate if out of frame
+          
           float randomPhi =
               ((float)(rand() % 10001) / 10000) * 2.0f *
               (float)M_PI;  // random phi between 0 and (2 * (float)M_PI) radian
           newAtom.center =
               pair.center +
-              vec4(cosf(randomPhi), sinf(randomPhi), 0, 1) *
-                  atomDistance;  // random directional unit vector * distance
-
-          if (-1 < newAtom.center.x &&
-              newAtom.center.x <
-                  1 &&  // atoms can't be initializes out of frame
-              -1 < newAtom.center.y &&
-              newAtom.center.y < 1) {
-            badPosition = 0;
-          }
-        }
+              vec3(cosf(randomPhi), sinf(randomPhi), 0) *
+                 atomDistance;  // random directional unit vector * distance
 
         newAtom.charge = charges.at(i);  // precalculated charge
 
@@ -358,9 +358,27 @@ class Molecule {
       sumMass += atoms.at(i).mass;
     }
 
-    centerOfMass = vec4(sumMass_x_Xcord / sumMass, sumMass_x_Ycord / sumMass, 0, 1);
+    centerOfMass = vec3(sumMass_x_Xcord / sumMass, sumMass_x_Ycord / sumMass, 0);
   
   }
+
+  void calcCoulombForces(Molecule othermolecule) {
+    for (int i = 0; i < nAtoms; i++) {
+      vec3 sumCoulombForces = vec3(0,0,0);
+      
+      for (int j = 0; j < othermolecule.nAtoms; j++) {
+        vec3 forceDirection  = normalize(othermolecule.atoms.at(j).center - atoms.at(i).center);
+        float distanceMeter = (float)length(othermolecule.atoms.at(j).center - atoms.at(i).center) * (float)pow(10.0f,-12);          //0.1 nm to meter 10^-8
+        float productOfCharges = othermolecule.atoms.at(j).charge * chargeUnit * atoms.at(i).charge * chargeUnit;
+        vec3 force = forceDirection * coulombConst * (productOfCharges/ (float)pow(distanceMeter, 2));
+        sumCoulombForces = sumCoulombForces + force;
+      }
+      coulombForces.push_back(sumCoulombForces);
+      printf("coulombforcevec x:%f y:%f\n", sumCoulombForces.x, sumCoulombForces.y);
+    }
+    printf("-------------------------------------------------------------\n");
+  }
+    
 
   // initialize all components
   void create() {
@@ -374,26 +392,26 @@ class Molecule {
   }
 
   // rotate all atoms and bonds around center of mass clockwise
-  void rotate(float angle) {
+  void rotate() {
     calcCenterOfMass();
 
     for (int i = 0; i < nAtoms; i++) {
-      atoms.at(i).rotate(centerOfMass, angle);
+      atoms.at(i).rotate(centerOfMass, wRotation);
     }
 
     for (unsigned int i = 0; i < bonds.size(); i++) {
-      bonds.at(i).rotate(centerOfMass, angle);
+      bonds.at(i).rotate(centerOfMass, wRotation);
     }
   }
 
   // translate all atoms and bonds with a given vector
-  void translate(vec4 translationVec) {
+  void translate() {
     for (int i = 0; i < nAtoms; i++) {
-        atoms.at(i).translate(translationVec);
+        atoms.at(i).translate(wTranslate);
     }
 
     for (unsigned int i = 0; i < bonds.size(); i++) {
-      bonds.at(i).translate(translationVec);
+      bonds.at(i).translate(wTranslate);
     }
   }
 
@@ -425,6 +443,11 @@ void onInitialization() {
   m1.create();
   m2.create();
 
+  m1.wRotation = -0.003f;
+  m2.wRotation = 0.005f;
+  m1.wTranslate = vec3(0.0f, 0.004f, 0.0f);
+  m2.wTranslate = vec3(-0.002f, -0.002f, 0.0f);
+  
   //a1.create();
 
   // create program for the GPU
@@ -467,10 +490,18 @@ void onKeyboard(unsigned char key, int pX, int pY) {
       m1.create();
       m2 = Molecule();
       m2.create();
+      m1.wRotation = -0.003f;
+      m2.wRotation = 0.005f;
+      m1.wTranslate = vec3(0.0f, 0.004f, 0.0f);
+      m2.wTranslate = vec3(-0.002f, -0.002f, 0.0f);
       break;
     case 'r':
-      m1.rotate(-0.3f);
-      m2.rotate(-0.3f);
+      m1.wRotation += 0.005f;
+      m2.wRotation += 0.005f;
+      break;
+    case 't':
+      m1.wRotation -= 0.005f;
+      m2.wRotation -= 0.005f;
       break;
   }
   glutPostRedisplay(); // if d, invalidate display, i.e. redraw
@@ -526,10 +557,11 @@ void onIdle() {
       GLUT_ELAPSED_TIME);      // elapsed time since the start of the program
   float sec = time / 1000.0f;  // convert msec to sec
   if (time % 10 ==0) {         // 0.01s time step
-    m1.rotate(-0.003f);
-    m2.rotate(0.005f);
-    m1.translate(vec4(0.0f, 0.004f, 0.0f, 1.0f));
-    m2.translate(vec4(-0.002f, -0.002f, 0.0f, 1.0f));
+    m1.calcCoulombForces(m2);
+    m1.rotate();
+    m2.rotate();
+    m1.translate();
+    m2.translate();
     glutPostRedisplay();  // redraw the scene
   }
 }
