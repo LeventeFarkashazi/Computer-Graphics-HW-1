@@ -88,6 +88,7 @@ int transform = 1;          // for testing
 
 float coulombConst = 8.988f * (float)pow(10, 9);
 float chargeUnit = 1.602f * (float)pow(10, -18);
+float hydrogenMass = 1.674f * (float)pow(10, -27);
 
 vec3 projectToHyperboloid(vec3 v) {
   if (transform)
@@ -277,6 +278,7 @@ class Molecule {
   float wRotation;            // rotation world coordinates     [angle/0.01 sec]
  
   vec3 centerOfMass;          // calculated mass center
+  float mass;                 // mass in kg 
 
   std::vector<vec3> coulombForces;
 
@@ -360,15 +362,17 @@ class Molecule {
 
     centerOfMass = vec3(sumMass_x_Xcord / sumMass, sumMass_x_Ycord / sumMass, 0);
   
+    mass = sumMass * hydrogenMass;
   }
 
   void calcCoulombForces(Molecule othermolecule) {
+    coulombForces.clear();
     for (int i = 0; i < nAtoms; i++) {
       vec3 sumCoulombForces = vec3(0,0,0);
       
       for (int j = 0; j < othermolecule.nAtoms; j++) {
         vec3 forceDirection  = normalize(othermolecule.atoms.at(j).center - atoms.at(i).center);
-        float distanceMeter = (float)length(othermolecule.atoms.at(j).center - atoms.at(i).center) * (float)pow(10.0f,-12);          //0.1 nm to meter 10^-8
+        float distanceMeter = (float)length(othermolecule.atoms.at(j).center - atoms.at(i).center) * (float)pow(10.0f,-10);          //0.1 nm to meter 10^-8
         float productOfCharges = othermolecule.atoms.at(j).charge * chargeUnit * atoms.at(i).charge * chargeUnit;
         vec3 force = forceDirection * coulombConst * (productOfCharges/ (float)pow(distanceMeter, 2));
         sumCoulombForces = sumCoulombForces + force;
@@ -377,6 +381,15 @@ class Molecule {
       printf("coulombforcevec x:%f y:%f\n", sumCoulombForces.x, sumCoulombForces.y);
     }
     printf("-------------------------------------------------------------\n");
+
+    vec3 translationForce = vec3(0, 0, 0);
+    for (int i = 0; i < nAtoms; i++) {
+      translationForce = translationForce + coulombForces.at(i);
+    }
+   printf("translationForce x:%f y:%f\n", translationForce.x, translationForce.y);
+    vec3 translationSpeed = translationForce / (mass/hydrogenMass);
+    printf("translationSpeed x:%f y:%f\n", translationSpeed.x, translationSpeed.y);
+   wTranslate = wTranslate + (translationSpeed / 0.01f);
   }
     
 
@@ -492,8 +505,8 @@ void onKeyboard(unsigned char key, int pX, int pY) {
       m2.create();
       m1.wRotation = -0.003f;
       m2.wRotation = 0.005f;
-      m1.wTranslate = vec3(0.0f, 0.004f, 0.0f);
-      m2.wTranslate = vec3(-0.002f, -0.002f, 0.0f);
+      //m1.wTranslate = vec3(0.0f, 0.004f, 0.0f);
+      //m2.wTranslate = vec3(-0.002f, -0.002f, 0.0f);
       break;
     case 'r':
       m1.wRotation += 0.005f;
@@ -558,6 +571,7 @@ void onIdle() {
   float sec = time / 1000.0f;  // convert msec to sec
   if (time % 10 ==0) {         // 0.01s time step
     m1.calcCoulombForces(m2);
+    m2.calcCoulombForces(m1);
     m1.rotate();
     m2.rotate();
     m1.translate();
