@@ -1,7 +1,10 @@
 {
   "ExpandedNodes": [
-    ""
+    "",
+    "\\Programs",
+    "\\Programs\\Skeleton",
+    "\\Programs\\Skeleton\\Skeleton"
   ],
-  "SelectedNode": "\\Skeleton.sln",
+  "SelectedNode": "\\Programs\\Skeleton\\Skeleton\\Skeleton.cpp",
   "PreviewInSolutionExplorer": false
 }

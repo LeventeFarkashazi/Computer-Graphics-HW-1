@@ -374,13 +374,13 @@ class Molecule {
       
       for (int j = 0; j < othermolecule.nAtoms; j++) {
         vec3 forceDirection  = atoms.at(i).center - othermolecule.atoms.at(j).center;
-        printf("Force direction : %16ef %16ef", forceDirection.x,forceDirection.y);
+        printf("Force direction : %16ef %16ef\n", forceDirection.x,forceDirection.y);
 
         float distanceMeter = length(forceDirection) * 1e-3f;
         //float distanceMeter = (float)length(othermolecule.atoms.at(j).center - atoms.at(i).center) * (float)pow(10.0f,-3);          //0.1 nm to meter 10^-8 INVALID
         float productOfCharges = (float)othermolecule.atoms.at(j).charge * chargeUnit * (float)atoms.at(i).charge * chargeUnit;
         //vec3 force = forceDirection * coulombConst * (productOfCharges/ (float)pow(distanceMeter, 2));
-        vec3 force = -forceDirection * productOfCharges * coulombConst / (float)pow(distanceMeter, 3);
+        vec3 force = forceDirection * productOfCharges * coulombConst / (float)pow(distanceMeter, 3);
         sumCoulombForces = sumCoulombForces + force;
       }
       coulombForces.push_back(sumCoulombForces);
