@@ -167,7 +167,7 @@ class Atom {
         
         //projections all points to hiperboloid and back to disc
         for (unsigned int i = 0; i < points.size(); i++) {
-          points.at(i) = projectToDisc(projectToHyperboloid(points.at(i)));
+          points[i] = projectToDisc(projectToHyperboloid(points[i]));
         }
         
         //set color (different intensity blue or red)
@@ -205,27 +205,27 @@ class Bond {
   }
 
   void rotate(vec3 centerOfRotation, float angle) {
-    float x0 = cosf(angle) * (atoms.at(0).center.x - centerOfRotation.x) - sinf(angle) * (atoms.at(0).center.y - centerOfRotation.y) + centerOfRotation.x;
-    float y0 = sinf(angle) * (atoms.at(0).center.x - centerOfRotation.x) + cosf(angle) * (atoms.at(0).center.y - centerOfRotation.y) + centerOfRotation.y;
-    atoms.at(0).center.x = x0;
-    atoms.at(0).center.y = y0;
+    float x0 = cosf(angle) * (atoms[0].center.x - centerOfRotation.x) - sinf(angle) * (atoms[0].center.y - centerOfRotation.y) + centerOfRotation.x;
+    float y0 = sinf(angle) * (atoms[0].center.x - centerOfRotation.x) + cosf(angle) * (atoms[0].center.y - centerOfRotation.y) + centerOfRotation.y;
+    atoms[0].center.x = x0;
+    atoms[0].center.y = y0;
 
-    float x1 = cosf(angle) * (atoms.at(1).center.x - centerOfRotation.x) - sinf(angle) * (atoms.at(1).center.y - centerOfRotation.y) + centerOfRotation.x;
-    float y1 = sinf(angle) * (atoms.at(1).center.x - centerOfRotation.x) + cosf(angle) * (atoms.at(1).center.y - centerOfRotation.y) + centerOfRotation.y;
-    atoms.at(1).center.x = x1;
-    atoms.at(1).center.y = y1;
+    float x1 = cosf(angle) * (atoms[1].center.x - centerOfRotation.x) - sinf(angle) * (atoms[1].center.y - centerOfRotation.y) + centerOfRotation.x;
+    float y1 = sinf(angle) * (atoms[1].center.x - centerOfRotation.x) + cosf(angle) * (atoms[1].center.y - centerOfRotation.y) + centerOfRotation.y;
+    atoms[1].center.x = x1;
+    atoms[1].center.y = y1;
   }
 
   void translate(vec3 translationVec) { 
-    atoms.at(0).center = atoms.at(0).center + translationVec;
-    atoms.at(1).center = atoms.at(1).center + translationVec;
+    atoms[0].center = atoms[0].center + translationVec;
+    atoms[1].center = atoms[1].center + translationVec;
   }
 
   void calculatePoints() {
     points.clear();
     for (int i = 0; i <= nVertices; ++i) {  // linear interpollation between two known points 
-      float xCoordinate = atoms.at(0).center.x + ((atoms.at(1).center.x - atoms.at(0).center.x) / (float)nVertices) * (float)i; 
-      float yCoordinate = atoms.at(0).center.y + ((atoms.at(1).center.y - atoms.at(0).center.y) / (float)nVertices) * (float)i;
+      float xCoordinate = atoms[0].center.x + ((atoms[1].center.x - atoms[0].center.x) / (float)nVertices) * (float)i; 
+      float yCoordinate = atoms[0].center.y + ((atoms[1].center.y - atoms[0].center.y) / (float)nVertices) * (float)i;
       points.push_back(vec3(xCoordinate, yCoordinate, 0));
     }
   }
@@ -252,7 +252,7 @@ class Bond {
 
     // projections all points to hiperboloid and back to disc
     for (unsigned int i = 0; i < points.size(); i++) {
-      points.at(i) = projectToDisc(projectToHyperboloid(points.at(i)));
+      points[i] = projectToDisc(projectToHyperboloid(points[i]));
     }
 
     // set color
@@ -280,7 +280,8 @@ class Molecule {
   float wRotation;            // rotation world coordinates     [angle/0.01 sec]
  
   vec3 centerOfMass;          // calculated mass center
-  float mass;                 // mass in kg 
+  float mass;                 // mass in kg
+  float momentOfInertia;
 
   std::vector<vec3> coulombForces;
 
@@ -321,9 +322,9 @@ class Molecule {
       Atom newAtom = Atom(0, 0, 0);
 
       if (!atoms.empty()) {  // every atom after first
-        Atom pair = atoms.at(
+        Atom pair = atoms[
             rand() %
-            atoms.size());  // connect with a bond to another atom randomly
+            atoms.size()];  // connect with a bond to another atom randomly
                             // (grow the tree with 1 node) => no circles
 
           
@@ -335,18 +336,19 @@ class Molecule {
               vec3(cosf(randomPhi), sinf(randomPhi), 0) *
                  atomDistance;  // random directional unit vector * distance
 
-        newAtom.charge = charges.at(i);  // precalculated charge
+        newAtom.charge = charges[i];  // precalculated charge
 
         bonds.push_back(Bond(newAtom, pair));
       } else {  // first atom ("root" of tree)
         newAtom.center.x = (float)(rand() % 201 - 100) / 100;
         newAtom.center.y = (float)(rand() % 201 - 100) / 100;
-        newAtom.charge = charges.at(i);
+        newAtom.charge = charges[i];
       }
       atoms.push_back(newAtom);
     }
 
     calcCenterOfMass();
+    calcMomentOfInertia();
   }
 
   void calcCenterOfMass() {
@@ -357,14 +359,24 @@ class Molecule {
     float sumMass = 0.0f;
 
     for (int i = 0; i < nAtoms; i++) {
-      sumMass_x_Xcord += atoms.at(i).mass * atoms.at(i).center.x;
-      sumMass_x_Ycord += atoms.at(i).mass * atoms.at(i).center.y;
-      sumMass += atoms.at(i).mass;
+      sumMass_x_Xcord += atoms[i].mass * atoms[i].center.x;
+      sumMass_x_Ycord += atoms[i].mass * atoms[i].center.y;
+      sumMass += atoms[i].mass;
     }
 
     centerOfMass = vec3(sumMass_x_Xcord / sumMass, sumMass_x_Ycord / sumMass, 0);
   
     mass = sumMass * hydrogenMass;
+  }
+
+  void calcMomentOfInertia() {
+      float sumMomentOfInertia = 0.0f;
+      for (int i = 0; i < nAtoms; i++) {
+          float distanceX = atoms[i].center.x - centerOfMass.x;
+          float distanceY = atoms[i].center.y - centerOfMass.y;
+          sumMomentOfInertia = sumMomentOfInertia + atoms[i].mass * ((float)pow(distanceX, 2) + (float)pow(distanceY, 2));
+      }
+      momentOfInertia = sumMomentOfInertia * hydrogenMass;
   }
 
   void calcCoulombForces(Molecule othermolecule) {
@@ -373,53 +385,43 @@ class Molecule {
       vec3 sumCoulombForces = vec3(0,0,0);
       
       for (int j = 0; j < othermolecule.nAtoms; j++) {
-        vec3 forceDirection  = atoms.at(i).center - othermolecule.atoms.at(j).center;
-        printf("Force direction : %16ef %16ef\n", forceDirection.x,forceDirection.y);
-
-        float distanceMeter = length(forceDirection) * 1e-3f;
-        //float distanceMeter = (float)length(othermolecule.atoms.at(j).center - atoms.at(i).center) * (float)pow(10.0f,-3);          //0.1 nm to meter 10^-8 INVALID
-        float productOfCharges = (float)othermolecule.atoms.at(j).charge * chargeUnit * (float)atoms.at(i).charge * chargeUnit;
-        //vec3 force = forceDirection * coulombConst * (productOfCharges/ (float)pow(distanceMeter, 2));
-        vec3 force = forceDirection * productOfCharges * coulombConst / (float)pow(distanceMeter, 3);
+        vec3 forceDirection = atoms[i].center - othermolecule.atoms[j].center;
+        float distanceMeter = length(forceDirection) * 1e-3f;                                //0.1 nm to meter 10^-8 INVALID magic const needed
+        float productOfCharges = (float)othermolecule.atoms[j].charge * chargeUnit * (float)atoms[i].charge * chargeUnit;
+        vec3 force = forceDirection * -productOfCharges * coulombConst / (float)pow(distanceMeter, 3);
         sumCoulombForces = sumCoulombForces + force;
       }
+
       coulombForces.push_back(sumCoulombForces);
-      printf("coulombforcevec x:%.16f y:%.16f\n", sumCoulombForces.x, sumCoulombForces.y);
     }
-    printf("-------------------------------------------------------------\n");
 
     vec3 translationForce = vec3(0, 0, 0);
     for (int i = 0; i < nAtoms; i++) {
-      translationForce = translationForce + dot(coulombForces[i], atoms[i].center - centerOfMass);
+      translationForce = translationForce + dot(coulombForces[1], atoms[1].center - centerOfMass) * normalize(atoms[1].center - centerOfMass);
     }
+    
+   vec3 translationSpeed = translationForce  / mass;    
+   wTranslate = wTranslate + (translationSpeed * 0.01f);
 
-   printf("translationForce x:%f y:%f\n", translationForce.x, translationForce.y);
-    
-   vec3 translationSpeed = translationForce  / mass;
-    
-   printf("translationSpeed x:%f y:%f\n", translationSpeed.x, translationSpeed.y);
-   
-   wTranslate = wTranslate + (translationSpeed * 0.1f);
 
    vec3 turningMoment = vec3(0, 0, 0);
    for (int i = 0; i < nAtoms; i++) {
-       vec3 atomsTurningMoment = cross(atoms.at(i).center - centerOfMass, coulombForces.at(i));
-       printf("atomsTurningMoment%d x:%f y:%f z:%f\n",i, atomsTurningMoment.x, atomsTurningMoment.y, atomsTurningMoment.z);
-       turningMoment = turningMoment + atomsTurningMoment;
-
+     vec3 atomsTurningMoment = cross(atoms[i].center - centerOfMass, coulombForces[i]);
+     turningMoment = turningMoment + atomsTurningMoment;
    }
-   printf("turningMoment x:%f y:%f z:%f\n", turningMoment.x, turningMoment.y, turningMoment.z);
+   float turningSpeed = turningMoment.z / momentOfInertia;
+
+   wRotation = wRotation + (turningSpeed * 0.01f);
   }
-    
 
   // initialize all components
   void create() {
     for (unsigned int i = 0; i < bonds.size(); i++) {
-      bonds.at(i).create();
+      bonds[i].create();
     }
 
     for (int i = 0; i < nAtoms; i++) {
-      atoms.at(i).create();
+      atoms[i].create();
     }
   }
 
@@ -428,33 +430,33 @@ class Molecule {
     calcCenterOfMass();
 
     for (int i = 0; i < nAtoms; i++) {
-      atoms.at(i).rotate(centerOfMass, wRotation * 0.01f);           //0.01 time step
+      atoms[i].rotate(centerOfMass, wRotation * 0.01f);           //0.01 time step
     }
 
     for (unsigned int i = 0; i < bonds.size(); i++) {
-      bonds.at(i).rotate(centerOfMass, wRotation * 0.01f);           //0.01 time step
+      bonds[i].rotate(centerOfMass, wRotation * 0.01f);           //0.01 time step
     }
   }
 
   // translate all atoms and bonds with a given vector
   void translate() {
     for (int i = 0; i < nAtoms; i++) {
-      atoms.at(i).translate(wTranslate * 0.01f);                    //0.01 time step
+      atoms[i].translate(wTranslate * 0.01f);                    //0.01 time step
     }
 
     for (unsigned int i = 0; i < bonds.size(); i++) {
-      bonds.at(i).translate(wTranslate * 0.01f);                    //0.01 time step
+      bonds[i].translate(wTranslate * 0.01f);                    //0.01 time step
     }
   }
 
   // draw all components
   void draw() {
     for (unsigned int i = 0; i < bonds.size(); i++) {
-      bonds.at(i).draw();
+      bonds[i].draw();
     }
 
     for (int i = 0; i < nAtoms; i++) {
-      atoms.at(i).draw();
+      atoms[i].draw();
     }
   }
 };
@@ -469,11 +471,6 @@ void onInitialization() {
   // Initialize the components of the molecule
   m1.create();
   m2.create();
-
-  m1.wRotation = -0.3f;
-  m2.wRotation = 0.5f;
-  m1.wTranslate = vec3(0.0f, 0.4f, 0.0f);
-  m2.wTranslate = vec3(-0.2f, -0.2f, 0.0f);
  
   // create program for the GPU
   gpuProgram.create(vertexSource, fragmentSource, "outColor");
@@ -514,18 +511,6 @@ void onKeyboard(unsigned char key, int pX, int pY) {
       m1.create();
       m2 = Molecule();
       m2.create();
-      //m1.wRotation = -0.003f;
-      //m2.wRotation = 0.005f;
-      //m1.wTranslate = vec3(0.0f, 0.004f, 0.0f);
-      //m2.wTranslate = vec3(-0.002f, -0.002f, 0.0f);
-      break;
-    case 'r':
-      m1.wRotation += 0.05f;
-      m2.wRotation += 0.05f;
-      break;
-    case 't':
-      m1.wRotation -= 0.05f;
-      m2.wRotation -= 0.05f;
       break;
   }
   glutPostRedisplay(); // if d, invalidate display, i.e. redraw
@@ -535,45 +520,10 @@ void onKeyboard(unsigned char key, int pX, int pY) {
 void onKeyboardUp(unsigned char key, int pX, int pY) {}
 
 // Move mouse with key pressed
-void onMouseMotion(
-    int pX, int pY) {  // pX, pY are the pixel coordinates of the cursor in the
-                       // coordinate system of the operation system
-  // Convert to normalized device space
-  float cX = 2.0f * pX / windowWidth - 1;  // flip y axis
-  float cY = 1.0f - 2.0f * pY / windowHeight;
-  printf("Mouse moved to (%3.2f, %3.2f)\n", cX, cY);
-}
+void onMouseMotion(int pX, int pY) {}
 
 // Mouse click event
-void onMouse(int button, int state, int pX,
-             int pY) {  // pX, pY are the pixel coordinates of the cursor in the
-                        // coordinate system of the operation system
-  // Convert to normalized device space
-  float cX = 2.0f * pX / windowWidth - 1;  // flip y axis
-  float cY = 1.0f - 2.0f * pY / windowHeight;
-
-  char* buttonStat;
-  switch (state) {
-    case GLUT_DOWN:
-      buttonStat = "pressed";
-      break;
-    case GLUT_UP:
-      buttonStat = "released";
-      break;
-  }
-
-  switch (button) {
-    case GLUT_LEFT_BUTTON:
-      printf("Left button %s at (%3.2f, %3.2f)\n", buttonStat, cX, cY);
-      break;
-    case GLUT_MIDDLE_BUTTON:
-      printf("Middle button %s at (%3.2f, %3.2f)\n", buttonStat, cX, cY);
-      break;
-    case GLUT_RIGHT_BUTTON:
-      printf("Right button %s at (%3.2f, %3.2f)\n", buttonStat, cX, cY);
-      break;
-  }
-}
+void onMouse(int button, int state, int pX, int pY) {}
 
 // Idle event indicating that some time elapsed: do animation here
 void onIdle() {
