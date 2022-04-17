@@ -1,5 +1,5 @@
-//=============================================================================================
-// Mintaprogram: Zöld háromszög. Ervenyes 2019. osztol.
+ï»¿//=============================================================================================
+// Mintaprogram: Zold hï¿½romszog. Ervenyes 2019. osztol.
 //
 // A beadott program csak ebben a fajlban lehet, a fajl 1 byte-os ASCII
 // karaktereket tartalmazhat, BOM kihuzando. Tilos:
@@ -22,7 +22,7 @@
 //
 // NYILATKOZAT
 // ---------------------------------------------------------------------------------------------
-// Nev    : Farkasházi Levente
+// Nev    : Farkashazi Levente
 // Neptun : HFDKFC
 // ---------------------------------------------------------------------------------------------
 // ezennel kijelentem, hogy a feladatot magam keszitettem, es ha barmilyen
@@ -82,13 +82,13 @@ class Camera2D {
   void Pan(vec2 t) { wCenter = wCenter + t; }
 };
 
-Camera2D camera;            // 2D camera
-GPUProgram gpuProgram;      // vertex and fragment shaders
-int transform = 1;          // for testing
+Camera2D camera;        // 2D camera
+GPUProgram gpuProgram;  // vertex and fragment shaders
+int transform = 1;      // for testing
 
 float coulombConst = 8.988e9f;
 float chargeUnit = 1.602e-18f;
-float hydrogenMass = 1.674e-17f;      //invalid
+float hydrogenMass = 1.674e-17f;  // invalid
 
 vec3 projectToHyperboloid(vec3 v) {
   if (transform)
@@ -106,13 +106,13 @@ vec3 projectToDisc(vec3 v) {
 
 class Atom {
   unsigned int vao = 0;
-  unsigned int vbo = 0;    // vertex buffer object
-  const int nVertices = 50; //the "resolution"
+  unsigned int vbo = 0;      // vertex buffer object
+  const int nVertices = 50;  // the "resolution"
 
  public:
-  int mass;         // between 2 and 6
-  int charge;       // between -10 and +10 (hidrogene: 1.60217 * 10^-19 C)
-  float radius;     // calculated from mass (between 0.02 and 0.06)
+  int mass;      // between 2 and 6
+  int charge;    // between -10 and +10 (hidrogene: 1.60217 * 10^-19 C)
+  float radius;  // calculated from mass (between 0.02 and 0.06)
   vec3 center;
 
   std::vector<vec3> points;
@@ -128,71 +128,68 @@ class Atom {
   void calculatePoints() {
     points.clear();
     for (int i = 0; i < nVertices; i++) {
-      float phi = (float)i * 2.0f * (float)M_PI / (float)nVertices;     //phi angle from the unit circle in radian 
+      float phi = (float)i * 2.0f * (float)M_PI / (float)nVertices;  // phi angle from the unit circle in radian
       points.push_back(vec3(
-            cosf(phi) * radius + center.x,                              //unit circle points * radius + center offset
-            sinf(phi) * radius + center.y, 0));
+          cosf(phi) * radius + center.x,  // unit circle points * radius + center offset
+          sinf(phi) * radius + center.y, 0));
     }
   }
 
-  void rotate(vec3 centerOfRotation, float angle) {     //counter clockwise
-    float x = cosf(angle) * (center.x - centerOfRotation.x) - sinf(angle) * (center.y - centerOfRotation.y) + centerOfRotation.x;    //formula: https://en.wikipedia.org/wiki/Rotation_of_axes
-    float y = sinf(angle) * (center.x - centerOfRotation.x) + cosf(angle) * (center.y - centerOfRotation.y) + centerOfRotation.y;    //modified with translating the point before totation  
+  void rotate(vec3 centerOfRotation, float angle) {  // formula: https://en.wikipedia.org/wiki/Rotation_of_axes
+    float x = cosf(angle) * (center.x - centerOfRotation.x) - sinf(angle) * (center.y - centerOfRotation.y) + centerOfRotation.x;
+    float y = sinf(angle) * (center.x - centerOfRotation.x) + cosf(angle) * (center.y - centerOfRotation.y) + centerOfRotation.y;
     center.x = x;
     center.y = y;
   }
 
-  void translate(vec3 translationVec) { 
-      center = center + translationVec;
-  }
+  void translate(vec3 translationVec) { center = center + translationVec; }
 
   void create() {
+    glGenVertexArrays(1, &vao);  // Generate 1 array object
+    glBindVertexArray(vao);      // bind array
 
-    glGenVertexArrays(1, &vao);             // Generate 1 array object
-    glBindVertexArray(vao);                 // bind array
+    glGenBuffers(1, &vbo);               // Generate 1 buffer object
+    glBindBuffer(GL_ARRAY_BUFFER, vbo);  // bind buffer
 
-    glGenBuffers(1, &vbo);                  // Generate 1 buffer object
-    glBindBuffer(GL_ARRAY_BUFFER, vbo);     // bind buffer
-
-    glEnableVertexAttribArray(0);           // AttribArray 0
+    glEnableVertexAttribArray(0);  // AttribArray 0
     glVertexAttribPointer(
-    0,                                      // vbo -> AttribArray 0
-    2, GL_FLOAT, GL_FALSE,                  // two floats/attrib, not fixed-point
-    sizeof(float) * 3, NULL);               // stride, offset: tightly packed
+        0,                         // vbo -> AttribArray 0
+        2, GL_FLOAT, GL_FALSE,     // two floats/attrib, not fixed-point
+        sizeof(float) * 3, NULL);  // stride, offset: tightly packed
   }
 
-    void draw() {
-        //calculate points
-        calculatePoints();
-        
-        //projections all points to hiperboloid and back to disc
-        for (unsigned int i = 0; i < points.size(); i++) {
-          points[i] = projectToDisc(projectToHyperboloid(points[i]));
-        }
-        
-        //set color (different intensity blue or red)
-        int location = glGetUniformLocation(gpuProgram.getId(), "color");   
-        if (charge < 0)
-            glUniform3f(location, 0.0f, 0.0f, (float)-1 * charge / 10);     // blue between 0 and 1 (need to be positive...)
-        else {
-            glUniform3f(location, (float)charge / 10, 0.0f, 0.0f);          // red between 0 and 1
-        }
+  void draw() {
+    // calculate points
+    calculatePoints();
 
-        glBindVertexArray(vao);                 //bind vao
-        
-        glBindBuffer(GL_ARRAY_BUFFER, vbo);
-        glBufferData(GL_ARRAY_BUFFER,           // copy to the GPU
-                     nVertices * sizeof(vec3),  // number of the vbo in bytes
-                     &points[0],                // address of the data array on the CPU
-                     GL_STATIC_DRAW);
-
-        glDrawArrays(GL_TRIANGLE_FAN, 0, nVertices);
+    // projections all points to hiperboloid and back to disc
+    for (unsigned int i = 0; i < points.size(); i++) {
+      points[i] = projectToDisc(projectToHyperboloid(points[i]));
     }
+
+    // set color (different intensity blue or red)
+    int location = glGetUniformLocation(gpuProgram.getId(), "color");
+    if (charge < 0)
+      glUniform3f(location, 0.0f, 0.0f, (float)-1 * charge / 10);  // blue between 0 and 1 (need to be positive...)
+    else {
+      glUniform3f(location, (float)charge / 10, 0.0f, 0.0f);  // red between 0 and 1
+    }
+
+    glBindVertexArray(vao);  // bind vao
+
+    glBindBuffer(GL_ARRAY_BUFFER, vbo);
+    glBufferData(GL_ARRAY_BUFFER,           // copy to the GPU
+                 nVertices * sizeof(vec3),  // number of the vbo in bytes
+                 &points[0],  // address of the data array on the CPU
+                 GL_STATIC_DRAW);
+
+    glDrawArrays(GL_TRIANGLE_FAN, 0, nVertices);
+  }
 };
 
 class Bond {
   unsigned int vao = 0;
-  unsigned int vbo = 0;       // vertex buffer object
+  unsigned int vbo = 0;      // vertex buffer object
   const int nVertices = 50;  // the "resolution"
 
  public:
@@ -216,15 +213,16 @@ class Bond {
     atoms[1].center.y = y1;
   }
 
-  void translate(vec3 translationVec) { 
+  void translate(vec3 translationVec) {
     atoms[0].center = atoms[0].center + translationVec;
     atoms[1].center = atoms[1].center + translationVec;
   }
 
   void calculatePoints() {
     points.clear();
-    for (int i = 0; i <= nVertices; ++i) { 
-      float xCoordinate = atoms[0].center.x + ((atoms[1].center.x - atoms[0].center.x) / (float)nVertices) * (float)i; 
+    for (int i = 0; i <= nVertices;
+         ++i) {  // linear interpollation between two known points
+      float xCoordinate = atoms[0].center.x + ((atoms[1].center.x - atoms[0].center.x) / (float)nVertices) * (float)i;
       float yCoordinate = atoms[0].center.y + ((atoms[1].center.y - atoms[0].center.y) / (float)nVertices) * (float)i;
       points.push_back(vec3(xCoordinate, yCoordinate, 0));
     }
@@ -233,10 +231,10 @@ class Bond {
   void create() {
     calculatePoints();
 
-    glGenVertexArrays(1, &vao);         // Generate 1 array object
-    glBindVertexArray(vao);             // bind array
+    glGenVertexArrays(1, &vao);  // Generate 1 array object
+    glBindVertexArray(vao);      // bind array
 
-    glGenBuffers(1, &vbo);              // Generate 1 buffer
+    glGenBuffers(1, &vbo);  // Generate 1 buffer
     glBindBuffer(GL_ARRAY_BUFFER, vbo);
 
     glEnableVertexAttribArray(0);  // AttribArray 0
@@ -257,14 +255,14 @@ class Bond {
 
     // set color
     int location = glGetUniformLocation(gpuProgram.getId(), "color");
-    glUniform3f(location, 1.0f, 1.0f, 1.0f);// white
+    glUniform3f(location, 1.0f, 1.0f, 1.0f);  // white
 
-    glBindVertexArray(vao);                 // bind vao
+    glBindVertexArray(vao);  // bind vao
 
-    glBindBuffer(GL_ARRAY_BUFFER, vbo);     // bind vbo 
+    glBindBuffer(GL_ARRAY_BUFFER, vbo);     // bind vbo
     glBufferData(GL_ARRAY_BUFFER,           // copy to the GPU
                  nVertices * sizeof(vec3),  // number of the vbo in bytes
-                 &points[0],                // address of the data array on the CPU
+                 &points[0],  // address of the data array on the CPU
                  GL_STATIC_DRAW);
 
     glDrawArrays(GL_LINE_STRIP, 0, nVertices);
@@ -276,11 +274,12 @@ class Molecule {
   int nAtoms;                 // random between2 and 8
   int nBonds;                 // tree => edges == atoms-1
   float atomDistance = 0.5f;  // between centers
-  vec3 wTranslationSpeed;            // translation world coordinates  [translation vector/0.01 sec]
-  float wRotationSpeed;            // rotation world coordinates     [angle/0.01 sec]
- 
-  vec3 centerOfMass;          // calculated mass center
-  float mass;                 // mass in kg
+  vec3 wTranslationSpeed;  // translation world coordinates  [translation vector/0.01
+                    // sec]
+  float wRotationSpeed;  // rotation world coordinates     [angle/0.01 sec]
+
+  vec3 centerOfMass;  // calculated mass center
+  float mass;         // mass in kg
   float momentOfInertia;
 
   std::vector<vec3> coulombForces;
@@ -292,7 +291,7 @@ class Molecule {
     nAtoms = rand() % 7 + 2;  // random between2 and 8
     nBonds = nAtoms - 1;      // tree => edges == atoms-1
 
-    wTranslationSpeed = vec3(0,0,0);
+    wTranslationSpeed = vec3(0, 0, 0);
     wRotationSpeed = 0;
 
     std::vector<int> charges;
@@ -322,19 +321,10 @@ class Molecule {
       Atom newAtom = Atom(0, 0, 0);
 
       if (!atoms.empty()) {  // every atom after first
-        Atom pair = atoms[
-            rand() %
-            atoms.size()];  // connect with a bond to another atom randomly
-                            // (grow the tree with 1 node) => no circles
+        Atom pair = atoms[rand() % atoms.size()];  // connect with a bond to another atom randomly (grow the tree witt 1 node) => no circles
 
-          
-          float randomPhi =
-              ((float)(rand() % 10001) / 10000) * 2.0f *
-              (float)M_PI;  // random phi between 0 and (2 * (float)M_PI) radian
-          newAtom.center =
-              pair.center +
-              vec3(cosf(randomPhi), sinf(randomPhi), 0) *
-                 atomDistance;  // random directional unit vector * distance
+        float randomPhi = ((float)(rand() % 10001) / 10000) * 2.0f * (float)M_PI;  // random phi between 0 and (2 * (float)M_PI) radian
+        newAtom.center = pair.center + vec3(cosf(randomPhi), sinf(randomPhi), 0) * atomDistance;  // random directional unit vector * distance
 
         newAtom.charge = charges[i];  // precalculated charge
 
@@ -352,7 +342,8 @@ class Molecule {
   }
 
   void calcCenterOfMass() {
-    // formula: http://www.batesville.k12.in.us/physics/apphynet/dynamics/center%20of%20mass/2d_1.html
+    // formula:
+    // http://www.batesville.k12.in.us/physics/apphynet/dynamics/center%20of%20mass/2d_1.html
 
     float sumMass_x_Xcord = 0.0f;
     float sumMass_x_Ycord = 0.0f;
@@ -365,38 +356,36 @@ class Molecule {
     }
 
     centerOfMass = vec3(sumMass_x_Xcord / sumMass, sumMass_x_Ycord / sumMass, 0);
-  
     mass = sumMass * hydrogenMass;
   }
 
   void calcMomentOfInertia() {
-      float sumMomentOfInertia = 0.0f;
-      for (int i = 0; i < nAtoms; i++) {
-          float distanceX = atoms[i].center.x - centerOfMass.x;
-          float distanceY = atoms[i].center.y - centerOfMass.y;
-          sumMomentOfInertia = sumMomentOfInertia + atoms[i].mass * ((float)pow(distanceX, 2) + (float)pow(distanceY, 2));
-      }
-      momentOfInertia = sumMomentOfInertia * hydrogenMass;
+    float sumMomentOfInertia = 0.0f;
+    for (int i = 0; i < nAtoms; i++) {
+      float distanceX = atoms[i].center.x - centerOfMass.x;
+      float distanceY = atoms[i].center.y - centerOfMass.y;
+      sumMomentOfInertia = sumMomentOfInertia + atoms[i].mass * ((float)pow(distanceX, 2) + (float)pow(distanceY, 2));
+    }
+    momentOfInertia = sumMomentOfInertia * hydrogenMass;
   }
 
-  void calcCoulombForces(Molecule othermolecule) {
+  void calcCoulombForcesAndDrag(Molecule othermolecule) {
     coulombForces.clear();
     for (int i = 0; i < nAtoms; i++) {
-      vec3 sumCoulombForces = vec3(0,0,0);
-      
+      vec3 sumCoulombForces = vec3(0, 0, 0);
+
       for (int j = 0; j < othermolecule.nAtoms; j++) {
         vec3 forceDirection = atoms[i].center - othermolecule.atoms[j].center;
-        float distanceMeter = length(forceDirection) * 1e-3f;                                //0.1 nm to meter 10^-8 INVALID magic const needed
+        float distanceMeter = length(forceDirection) * 1e-2f* 0.2f;  // 0.1 nm to meter 10^-8 INVALID magic const needed
         float productOfCharges = (float)othermolecule.atoms[j].charge * chargeUnit * (float)atoms[i].charge * chargeUnit;
         vec3 force = forceDirection * productOfCharges * coulombConst / (float)pow(distanceMeter, 3);
         sumCoulombForces = sumCoulombForces + force;
       }
-        
       //drag    
-      vec3 direction = atoms[i].center - centerOfMass; //formula: https://en.wikipedia.org/wiki/Rotational_speed
-      vec3 atomSpeed = wTranslationSpeed + wRotationSpeed * length(atoms[i].center - centerOfMass) * normalize(vec3(direction.y, -1 * direction.x, 0));
+      vec3 dragDirection = atoms[i].center - centerOfMass; //formula: https://en.wikipedia.org/wiki/Rotational_speed
+      vec3 atomSpeed = wTranslationSpeed + wRotationSpeed * length(atoms[i].center - centerOfMass) * normalize(vec3(dragDirection.y, -1 * dragDirection.x, 0));
 
-      coulombForces.push_back(sumCoulombForces + 0.2f * 1e-16f * atomSpeed);
+      coulombForces.push_back(sumCoulombForces + 0.25f * 1e-16f * atomSpeed);
       //coulombForces.push_back(sumCoulombForces);
     }
 
@@ -404,19 +393,18 @@ class Molecule {
     for (int i = 0; i < nAtoms; i++) {
       translationForce = translationForce + coulombForces[1];
     }
-    
-   vec3 translationSpeed = translationForce  / mass;    
-   wTranslationSpeed = wTranslationSpeed + (translationSpeed * 0.01f);
 
+    vec3 translationSpeed = translationForce / mass;
+    wTranslationSpeed = wTranslationSpeed + (translationSpeed * 0.01f);
 
-   vec3 turningMoment = vec3(0, 0, 0);
-   for (int i = 0; i < nAtoms; i++) {
-     vec3 atomsTurningMoment = cross(atoms[i].center - centerOfMass, coulombForces[i]);
-     turningMoment = turningMoment + atomsTurningMoment;
-   }
-   float turningSpeed = turningMoment.z / momentOfInertia;
+    vec3 turningMoment = vec3(0, 0, 0);
+    for (int i = 0; i < nAtoms; i++) {
+      vec3 atomsTurningMoment = cross(atoms[i].center - centerOfMass, coulombForces[i]);
+      turningMoment = turningMoment + atomsTurningMoment;
+    }
+    float turningSpeed = turningMoment.z / momentOfInertia;
 
-   wRotationSpeed = wRotationSpeed + (turningSpeed * 0.01f);
+    wRotationSpeed = wRotationSpeed + (turningSpeed * 0.01f);
   }
 
   // initialize all components
@@ -435,22 +423,22 @@ class Molecule {
     calcCenterOfMass();
 
     for (int i = 0; i < nAtoms; i++) {
-      atoms[i].rotate(centerOfMass, wRotationSpeed * 0.01f);           //0.01 time step
+      atoms[i].rotate(centerOfMass, wRotationSpeed * 0.01f);  // 0.01 time step
     }
 
     for (unsigned int i = 0; i < bonds.size(); i++) {
-      bonds[i].rotate(centerOfMass, wRotationSpeed * 0.01f);           //0.01 time step
+      bonds[i].rotate(centerOfMass, wRotationSpeed * 0.01f);  // 0.01 time step
     }
   }
 
   // translate all atoms and bonds with a given vector
   void translate() {
     for (int i = 0; i < nAtoms; i++) {
-      atoms[i].translate(wTranslationSpeed * 0.01f);                    //0.01 time step
+      atoms[i].translate(wTranslationSpeed * 0.01f);  // 0.01 time step
     }
 
     for (unsigned int i = 0; i < bonds.size(); i++) {
-      bonds[i].translate(wTranslationSpeed * 0.01f);                    //0.01 time step
+      bonds[i].translate(wTranslationSpeed * 0.01f);  // 0.01 time step
     }
   }
 
@@ -471,29 +459,29 @@ Molecule m2;
 
 // Initialization, create an OpenGL context
 void onInitialization() {
-  glViewport(0, 0, windowWidth, windowHeight);      // Position and size of the photograph on screen
+  glViewport(0, 0, windowWidth, windowHeight);  // Position and size of the photograph on screen
 
   // Initialize the components of the molecule
   m1.create();
   m2.create();
- 
+
   // create program for the GPU
   gpuProgram.create(vertexSource, fragmentSource, "outColor");
 }
 
 // Window has become invalid: Redraw
 void onDisplay() {
+  glClearColor((GLclampf)0.2, (GLclampf)0.2, (GLclampf)0.2,
+               (GLclampf)0);     // background color
+  glClear(GL_COLOR_BUFFER_BIT);  // clear frame buffer
 
-  glClearColor((GLclampf)0.2, (GLclampf)0.2, (GLclampf)0.2, (GLclampf)0);     // background color
-  glClear(GL_COLOR_BUFFER_BIT);    // clear frame buffer
-    
   m1.draw();
-  m2.draw(); 
-  
- mat4 MVPTransform = camera.V();
- gpuProgram.setUniform(MVPTransform, "MVP");
+  m2.draw();
 
-  glutSwapBuffers();        // exchange buffers for double buffering
+  mat4 MVPTransform = camera.V();
+  gpuProgram.setUniform(MVPTransform, "MVP");
+
+  glutSwapBuffers();  // exchange buffers for double buffering
 }
 
 // Key of ASCII code pressed
@@ -518,7 +506,7 @@ void onKeyboard(unsigned char key, int pX, int pY) {
       m2.create();
       break;
   }
-  glutPostRedisplay(); // if d, invalidate display, i.e. redraw
+  glutPostRedisplay();  // if d, invalidate display, i.e. redraw
 }
 
 // Key of ASCII code released
@@ -533,10 +521,10 @@ void onMouse(int button, int state, int pX, int pY) {}
 // Idle event indicating that some time elapsed: do animation here
 void onIdle() {
   long time = glutGet(
-      GLUT_ELAPSED_TIME);      // elapsed time since the start of the program
-  if (time % 10 == 0) {         // 0.01s time step
-    m1.calcCoulombForces(m2);
-    m2.calcCoulombForces(m1);
+      GLUT_ELAPSED_TIME);  // elapsed time since the start of the program
+  if (time % 10 == 0) {    // 0.01s time step
+    m1.calcCoulombForcesAndDrag(m2);
+    m2.calcCoulombForcesAndDrag(m1);
     m1.rotate();
     m2.rotate();
     m1.translate();
