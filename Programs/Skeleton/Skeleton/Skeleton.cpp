@@ -223,7 +223,7 @@ class Bond {
 
   void calculatePoints() {
     points.clear();
-    for (int i = 0; i <= nVertices; ++i) {  // linear interpollation between two known points 
+    for (int i = 0; i <= nVertices; ++i) { 
       float xCoordinate = atoms[0].center.x + ((atoms[1].center.x - atoms[0].center.x) / (float)nVertices) * (float)i; 
       float yCoordinate = atoms[0].center.y + ((atoms[1].center.y - atoms[0].center.y) / (float)nVertices) * (float)i;
       points.push_back(vec3(xCoordinate, yCoordinate, 0));
@@ -276,8 +276,8 @@ class Molecule {
   int nAtoms;                 // random between2 and 8
   int nBonds;                 // tree => edges == atoms-1
   float atomDistance = 0.5f;  // between centers
-  vec3 wTranslate;            // translation world coordinates  [translation vector/0.01 sec]
-  float wRotation;            // rotation world coordinates     [angle/0.01 sec]
+  vec3 wTranslationSpeed;            // translation world coordinates  [translation vector/0.01 sec]
+  float wRotationSpeed;            // rotation world coordinates     [angle/0.01 sec]
  
   vec3 centerOfMass;          // calculated mass center
   float mass;                 // mass in kg
@@ -292,8 +292,8 @@ class Molecule {
     nAtoms = rand() % 7 + 2;  // random between2 and 8
     nBonds = nAtoms - 1;      // tree => edges == atoms-1
 
-    wTranslate = vec3(0,0,0);
-    wRotation = 0;
+    wTranslationSpeed = vec3(0,0,0);
+    wRotationSpeed = 0;
 
     std::vector<int> charges;
 
@@ -388,20 +388,25 @@ class Molecule {
         vec3 forceDirection = atoms[i].center - othermolecule.atoms[j].center;
         float distanceMeter = length(forceDirection) * 1e-3f;                                //0.1 nm to meter 10^-8 INVALID magic const needed
         float productOfCharges = (float)othermolecule.atoms[j].charge * chargeUnit * (float)atoms[i].charge * chargeUnit;
-        vec3 force = forceDirection * -productOfCharges * coulombConst / (float)pow(distanceMeter, 3);
+        vec3 force = forceDirection * productOfCharges * coulombConst / (float)pow(distanceMeter, 3);
         sumCoulombForces = sumCoulombForces + force;
       }
+        
+      //drag    
+      vec3 direction = atoms[i].center - centerOfMass; //formula: https://en.wikipedia.org/wiki/Rotational_speed
+      vec3 atomSpeed = wTranslationSpeed + wRotationSpeed * length(atoms[i].center - centerOfMass) * normalize(vec3(direction.y, -1 * direction.x, 0));
 
-      coulombForces.push_back(sumCoulombForces);
+      coulombForces.push_back(sumCoulombForces + 0.2f * 1e-16f * atomSpeed);
+      //coulombForces.push_back(sumCoulombForces);
     }
 
     vec3 translationForce = vec3(0, 0, 0);
     for (int i = 0; i < nAtoms; i++) {
-      translationForce = translationForce + dot(coulombForces[1], atoms[1].center - centerOfMass) * normalize(atoms[1].center - centerOfMass);
+      translationForce = translationForce + coulombForces[1];
     }
     
    vec3 translationSpeed = translationForce  / mass;    
-   wTranslate = wTranslate + (translationSpeed * 0.01f);
+   wTranslationSpeed = wTranslationSpeed + (translationSpeed * 0.01f);
 
 
    vec3 turningMoment = vec3(0, 0, 0);
@@ -411,7 +416,7 @@ class Molecule {
    }
    float turningSpeed = turningMoment.z / momentOfInertia;
 
-   wRotation = wRotation + (turningSpeed * 0.01f);
+   wRotationSpeed = wRotationSpeed + (turningSpeed * 0.01f);
   }
 
   // initialize all components
@@ -430,22 +435,22 @@ class Molecule {
     calcCenterOfMass();
 
     for (int i = 0; i < nAtoms; i++) {
-      atoms[i].rotate(centerOfMass, wRotation * 0.01f);           //0.01 time step
+      atoms[i].rotate(centerOfMass, wRotationSpeed * 0.01f);           //0.01 time step
     }
 
     for (unsigned int i = 0; i < bonds.size(); i++) {
-      bonds[i].rotate(centerOfMass, wRotation * 0.01f);           //0.01 time step
+      bonds[i].rotate(centerOfMass, wRotationSpeed * 0.01f);           //0.01 time step
     }
   }
 
   // translate all atoms and bonds with a given vector
   void translate() {
     for (int i = 0; i < nAtoms; i++) {
-      atoms[i].translate(wTranslate * 0.01f);                    //0.01 time step
+      atoms[i].translate(wTranslationSpeed * 0.01f);                    //0.01 time step
     }
 
     for (unsigned int i = 0; i < bonds.size(); i++) {
-      bonds[i].translate(wTranslate * 0.01f);                    //0.01 time step
+      bonds[i].translate(wTranslationSpeed * 0.01f);                    //0.01 time step
     }
   }
 
